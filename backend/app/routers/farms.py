@@ -27,7 +27,7 @@ async def create_farm(
     return farm
 
 
-@router.get("", response_model=FarmRead)
+@router.get("", response_model=list[FarmRead])
 async def list_farms(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user)
