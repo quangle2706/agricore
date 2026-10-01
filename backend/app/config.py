@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     database_url: str
     secret_key: str
     frontend_origin: str
-    aws_region: str
-    s3_bucket_name: str
+    aws_region: str = "us-east-1"
+    s3_bucket_name: str = "agricore-services"
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parent.parent / ".env"
