@@ -22,7 +22,7 @@ export default function SideMenu() {
       sx={{
         display: { xs: 'none', md: 'block' },
         [`& .${drawerClasses.paper}`]: {
-            backgroundColor: '#033785',
+            backgroundColor: 'primary.main',
             color: '#FFFFFF',
         },
       }}

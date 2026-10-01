@@ -9,6 +9,8 @@ from app.dependencies import get_db, get_current_user, require_role
 from app.models import Equipment, EquipmentStatus, User, UserRole
 from app.schemas.equipment import EquipmentCreate, EquipmentRead
 
+from decimal import Decimal
+
 router = APIRouter(prefix="/equipments", tags=["equipments"])
 
 @router.post("", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
@@ -32,6 +34,30 @@ async def list_equipments(
     result = await db.execute(statement)
     equipments = result.scalars().all()
     return equipments
+
+#Business Question 1: Active equipment units are opertating below a 20% fuel level across all farms?
+@router.get("/active", response_model=list[EquipmentRead])
+async def list_active_equipments(
+    max_fuel_level: Decimal | None = Query(
+        default=None,
+        ge=0,
+        le=100,
+        description="Only return active equipments strictly below this fuel level percentage"
+    ),
+    db: AsyncSession = Depends(get_db)
+) -> list[EquipmentRead]:
+    statement = select(Equipment).where(
+        Equipment.status == EquipmentStatus.IN_USE)
+
+    if max_fuel_level is not None:
+        statement = statement.where(Equipment.fuel_level < max_fuel_level)
+    else:
+        statement = statement.where(Equipment.fuel_level < 20)
+    statement = statement.order_by(Equipment.id)
+
+    result = await db.execute(statement)
+    return result.scalars().all()
+#----------------------------
 
 @router.patch("/{equipment_id}", response_model=EquipmentRead)
 async def update_equipment(

@@ -8,6 +8,7 @@ import Equipments from './pages/Equipments';
 import FieldJobs from './pages/FieldJobs';
 import Operators from './pages/Operators';
 import ServiceReports from './pages/ServiceReports';
+import Users from './pages/Users';
 
 function AppContent() {
     const { isAuthenticated } = useAuth();
@@ -18,6 +19,7 @@ function AppContent() {
         <Route path='/field-jobs' element={<FieldJobs />} />
         <Route path='/operators' element={<Operators />} />
         <Route path='/service-reports' element={<ServiceReports />} />
+        <Route path='/users' element={<Users />} />
     </Routes> : <LoginForm />;
 }
 

@@ -1,0 +1,186 @@
+import { useEffect, useState } from "react";
+import { DataGrid } from '@mui/x-data-grid';
+import { Alert, Box, TextField, CircularProgress, Stack,
+    Button, Dialog, DialogActions, DialogContent, DialogTitle,
+    MenuItem
+ } from "@mui/material";
+import apiClient from "../../api/client";
+
+const columns = [
+    { field: 'id', headerName: 'ID', width: 70}, // default type is String
+    { field: 'title', headerName: "Title", width: 180},
+    { field: 'priority', headerName: "Priority", width: 130},
+    { field: 'status', headerName: "Status", width: 130},
+    { field: 'equipment_id', headerName: "Equipment ID", width: 110, type: 'number'},
+    { field: 'operator_id', headerName: "Operator ID", width: 110, type: 'number'},
+];
+
+const PRIORITY_OPTIONS = ['Low', 'Medium', 'Critical'];
+const STATUS_OPTIONS = ['Pending', 'In-Progress', 'Completed', 'Failed'];
+
+function FieldJobDataGrid({ onSuccess }) {
+    const [fieldJobs, setFieldJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [selectedFieldJob, setSelectedFieldJob] = useState(null);
+    const [formValues, setFormValues] = useState({
+        title: '',
+        priority: '',
+        status: '',
+        equipment_id: '',
+        operator_id: '',
+    });
+
+    async function fetchFieldJobs() {
+        setLoading(true);
+        try {
+            const response = await apiClient.get('/field-jobs');
+            setFieldJobs(response.data);
+            setError(null);
+        } catch {
+            setError('Could not load data');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        fetchFieldJobs();
+    }, []);
+
+    if (loading) return <CircularProgress />
+    if (error) return <Alert severity="error">{error}</Alert>
+
+    const openCreateDialog = () => {
+        setSelectedFieldJob(null);
+        setFormValues({ title: '', priority: '', status: '', equipment_id: '', operator_id: '' });
+        setDialogOpen(true);
+    }
+
+    const handleFieldChange = (field) => (event) => {
+        setFormValues((prev) => ({ ...prev, [field]: event.target.value }));
+    }
+
+    const handleRowClick = ({ row }) => {
+        setSelectedFieldJob(row);
+        setFormValues({
+            title: row.title,
+            priority: row.priority,
+            status: row.status,
+            equipment_id: row.equipment_id,
+            operator_id: row.operator_id,
+        });
+        setDialogOpen(true);
+    }
+
+    const handleCreate = async() => {
+        try {
+            await apiClient.post('/field-jobs', {
+                ...formValues
+            });
+            setDialogOpen(false);
+            setFormValues({
+                title: '',
+                priority: '',
+                status: '',
+                equipment_id: '',
+                operator_id: '',
+            });
+            await fetchFieldJobs(); 
+            onSuccess?.(`Field Job ${formValues.title} created.`);
+        } catch {
+            setError('Could not create field job');
+        }
+    }
+
+    const handleUpdate = async () => {
+        try {
+            await apiClient.patch(`/field-jobs/${selectedFieldJob.id}`, {
+                ...formValues,
+                equipment_id: Number(formValues.equipment_id),
+                operator_id: Number(formValues.operator_id),
+            });
+            setDialogOpen(false);
+            setSelectedFieldJob(null);
+            await fetchFieldJobs();
+            onSuccess?.(`Field Job ${formValues.title} updated.`);
+        } catch {
+            setError('Could not update field job');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm(`Delete field job ${selectedFieldJob.title}?`)) return;
+        try {
+            await apiClient.delete(`/field-jobs/${selectedFieldJob.id}`);
+            setDialogOpen(false);
+            setSelectedFieldJob(null);
+            await fetchFieldJobs();
+            onSuccess?.(`Field Job ${selectedFieldJob.title} deleted.`);
+        } catch {
+            setError('Could not delete farm');
+        }
+    };
+
+    return (
+        <>
+            <Box sx={{ height: 400, width: '100%' }}>
+                <DataGrid
+                    loading={loading}
+                    rows={fieldJobs}
+                    columns={columns}
+                    getRowId={(row) => row.id}
+                    onRowClick={handleRowClick}
+                    rowHeight={44}
+                    columnHeaderHeight={45}
+                    sx={{
+                        '& .MuiDataGrid-cell': {
+                            fontSize: '0.8rem',
+                            alignItems: 'center',
+                        },
+                        '& .MuiDataGrid-columnHeaderTitle': {
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                        },
+                        '& .MuiDataGrid-columnHeaders': {
+                            backgroundColor: '#f4f6f8',
+                            borderBottom: '2px solid #d7dce2',
+                        },
+                    }}
+                />
+            </Box>
+            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>
+            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+                <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedFieldJob ? 'Edit Field Job' : 'Add New Field Job'}</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
+                        <TextField label="Title" value={formValues.title} onChange={handleFieldChange('title')} />
+                        <TextField label="Priority" value={formValues.priority} onChange={handleFieldChange('priority')}>
+                            {PRIORITY_OPTIONS.map((option) => {
+                                <MenuItem key={option} value={option}>{option}</MenuItem>
+                            })}
+                        </TextField>
+                        <TextField label="Status" value={formValues.status} onChange={handleFieldChange('status')}>
+                            {STATUS_OPTIONS.map((option) => {
+                                <MenuItem key={option} value={option}>{option}</MenuItem>
+                            })}
+                        </TextField>
+                        <TextField label="Equipment ID" type="number" value={formValues.equipment_id} onChange={handleFieldChange('equipment_id')} />
+                        <TextField label="Operator ID" type="number" value={formValues.operator_id} onChange={handleFieldChange('operator_id')} />
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+                    {selectedFieldJob && <Button color="error" onClick={handleDelete}>Delete</Button>}
+                    <Button variant="contained" onClick={selectedFieldJob ? handleUpdate : handleCreate}>
+                        {selectedFieldJob ? 'Save changes' : 'Create'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
+    )
+}
+
+export default FieldJobDataGrid;

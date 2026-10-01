@@ -20,6 +20,7 @@ const mainListItems = [
   { text: 'Farms', icon: <AccountTreeOutlinedIcon />, route: '/farms' },
   { text: 'Equipments', icon: <AtmIcon />, route: '/equipments' },
   { text: 'Field Jobs', icon: <CallIcon />, route: '/field-jobs' },
+  { text: 'Operators', icon: <CallIcon />, route: '/operators' },
   { text: 'Service Reports', icon: <AnalyticsOutlinedIcon />, route: '/service-reports' },  
   { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' },
 ];
@@ -39,7 +40,7 @@ export default function MenuContent() {
               sx={{
                   borderRadius: 2,
                   mb: 0.5,
-                  color: 'rgba(255,255,255,0.7)',
+                  color: 'rgb(255, 255, 255)',
 
                   '& .MuiListItemIcon-root': {
                     color: 'rgba(255,255,255,0.7)',

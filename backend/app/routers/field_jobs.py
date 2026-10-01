@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user, require_role
 from app.models import FieldJob, FieldJobPriority, FieldJobStatus, User, UserRole, Equipment, Operator
-from app.schemas.field_job import FieldJobCreate, FieldJobRead
+from app.schemas.field_job import FieldJobCreate, FieldJobRead, DiscrepancyRead, FieldJobRatioRead
 
 router = APIRouter(prefix="/field-jobs", tags=["field-jobs"])
 
@@ -100,3 +100,83 @@ async def delete_field_job(
         )
     await db.delete(field_job)
     await db.commit()
+
+
+#--------
+#Question 2:
+@router.get("/discrepancies", response_model=list[DiscrepancyRead])
+async def list_colocation_discrepancies(
+    #to set filter by priority, status
+    priority: FieldJobPriority | None = Query(
+        default=None,
+        description="Only return discrepancies for field jobs of this priority"
+    ),
+    status: FieldJobStatus | None = Query(
+        default=None,
+        description="Only return discrepancies for field jobs of this status"
+    ),
+    db: AsyncSession=Depends(get_db),
+    #add role to use this API
+    _: User = Depends(get_current_user)
+):
+    """ Answer business question #2 """
+    statement = (
+        select(
+            FieldJob.id.label("field_job_id"),
+            FieldJob.title,
+            Equipment.farm_id.label("equipment_farm_id"),
+            Operator.farm_id.label("operator_farm_id")
+        )
+        .join(Equipment, Equipment.id == FieldJob.equipment_id)
+        .join(Operator, Operator.id == FieldJob.operator_id)
+        .where(Equipment.farm_id != Operator.farm_id)
+    )
+
+    #use the query parameter
+    if priority is not None:
+        statement = statement.where(FieldJob.priority == priority)
+
+    if status is not None:
+        statement = statement.where(FieldJob.status == status)
+
+    statement = statement.order_by(FieldJob.id) # follow the order to statement in SQL -> order_by is the last
+    result = await db.execute(statement)
+    return [dict(row) for row in result.mappings().all()]
+
+
+#Question 3:
+#get service call completion/failure ratio by ATM models
+@router.get("/completion-failure-ratio", response_model=list[FieldJobRatioRead])
+async def get_completion_failure_ratio(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user)
+) -> list[FieldJobRatioRead]:
+    statement = (
+        select(
+            Equipment.model.label("equipment_model"),
+            func.count().label("total_count"),
+            func.count().filter(FieldJob.status == FieldJobStatus.COMPLETED)
+                .label("completed_count"),
+            func.count().filter(FieldJob.status == FieldJobStatus.FAILED)
+                .label("failed_count")
+        )
+        .join(FieldJob, FieldJob.equipment_id == Equipment.id)
+        .group_by(Equipment.model)
+    )
+
+    result = await db.execute(statement)
+    rows = result.mappings().all()
+
+    #response list field jobs with ratio info
+    return [
+        FieldJobRatioRead(
+            equipment_model=row["equipment_model"],
+            total_count=row["total_count"],
+            completed_count=row["completed_count"],
+            failed_count=row["failed_count"],
+            completion_failure_ratio=(
+                row["completed_count"] / row["failed_count"] if row["failed_count"] > 0 else None
+            )
+        ) for row in rows
+    ]
+

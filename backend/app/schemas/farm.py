@@ -20,4 +20,9 @@ class FarmRead(FarmBase):
 
 #Business Question 4: 
 # Which farms have more than 30% of their equipment currently flagged for maintenance?
-# TODO: ---
+class FarmMaintenanceRead(BaseModel):
+    farm_id: int
+    farm_name: str
+    total_equipments: int
+    total_maintenance_equipments: int
+    maintenance_ratio: float = Field(ge=0, le=1)
