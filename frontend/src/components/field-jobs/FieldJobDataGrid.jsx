@@ -157,15 +157,15 @@ function FieldJobDataGrid({ onSuccess }) {
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
                         <TextField label="Title" value={formValues.title} onChange={handleFieldChange('title')} />
-                        <TextField label="Priority" value={formValues.priority} onChange={handleFieldChange('priority')}>
-                            {PRIORITY_OPTIONS.map((option) => {
+                        <TextField select label="Priority" value={formValues.priority} onChange={handleFieldChange('priority')}>
+                            {PRIORITY_OPTIONS.map((option) => (
                                 <MenuItem key={option} value={option}>{option}</MenuItem>
-                            })}
+                            ))}
                         </TextField>
-                        <TextField label="Status" value={formValues.status} onChange={handleFieldChange('status')}>
-                            {STATUS_OPTIONS.map((option) => {
+                        <TextField select label="Status" value={formValues.status} onChange={handleFieldChange('status')}>
+                            {STATUS_OPTIONS.map((option) => (
                                 <MenuItem key={option} value={option}>{option}</MenuItem>
-                            })}
+                            ))}
                         </TextField>
                         <TextField label="Equipment ID" type="number" value={formValues.equipment_id} onChange={handleFieldChange('equipment_id')} />
                         <TextField label="Operator ID" type="number" value={formValues.operator_id} onChange={handleFieldChange('operator_id')} />

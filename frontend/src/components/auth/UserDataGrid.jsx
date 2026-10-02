@@ -21,6 +21,7 @@ function UserDataGrid({ onSuccess }) {
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [formError, setFormError] = useState(null);
     const [formValues, setFormValues] = useState({
         username: '',
         password: '',
@@ -49,11 +50,13 @@ function UserDataGrid({ onSuccess }) {
 
     const openCreateDialog = () => {
         setSelectedUser(null);
+        setFormError(null);
         setFormValues({ username: '', password: '', role: ''});
         setDialogOpen(true);
     }
 
     const handleFieldChange = (field) => (event) => {
+        setFormError(null);
         setFormValues((prev) => ({ ...prev, [field]: event.target.value }));
     }
 
@@ -68,6 +71,20 @@ function UserDataGrid({ onSuccess }) {
     }
 
     const handleCreate = async() => {
+        setFormError(null);
+        if (formValues.username.trim().length < 3) {
+            setFormError('Username must be at least 3 characters long.');
+            return;
+        }
+        if (formValues.password.length < 8) {
+            setFormError('Password must be at least 8 characters long.');
+            return;
+        }
+        if (!formValues.role) {
+            setFormError('Select a role for this user.');
+            return;
+        }
+
         try {
             await apiClient.post('/auth/register', {
                 ...formValues
@@ -80,8 +97,12 @@ function UserDataGrid({ onSuccess }) {
             });
             await fetchUsers(); 
             onSuccess?.(`User ${formValues.username} created.`);
-        } catch {
-            setError('Could not create user');
+        } catch (requestError) {
+            const detail = requestError.response?.data?.detail;
+            const message = Array.isArray(detail)
+                ? detail.map((item) => item.msg).join('. ')
+                : detail;
+            setFormError(message || 'Could not create user. Check your access and try again.');
         }
     }
 
@@ -144,9 +165,10 @@ function UserDataGrid({ onSuccess }) {
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
-                        <TextField label="Username" value={formValues.username} onChange={handleFieldChange('username')} />
-                        <TextField label="Password" type="password" value={formValues.password} onChange={handleFieldChange('password')} />
-                        <TextField label="Role" select value={formValues.role} onChange={handleFieldChange('role')}>
+                        {formError && <Alert severity="error">{formError}</Alert>}
+                        <TextField label="Username" required inputProps={{ minLength: 3, maxLength: 50 }} value={formValues.username} onChange={handleFieldChange('username')} />
+                        <TextField label="Password" type="password" required inputProps={{ minLength: 8 }} value={formValues.password} onChange={handleFieldChange('password')} />
+                        <TextField label="Role" select required value={formValues.role} onChange={handleFieldChange('role')}>
                             {ROLE_OPTIONS.map((option) => (
                                 <MenuItem key={option} value={option}>
                                     {option}

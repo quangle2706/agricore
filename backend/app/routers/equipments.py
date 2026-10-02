@@ -47,7 +47,8 @@ async def list_active_equipments(
     db: AsyncSession = Depends(get_db)
 ) -> list[EquipmentRead]:
     statement = select(Equipment).where(
-        Equipment.status == EquipmentStatus.IN_USE)
+        Equipment.status != EquipmentStatus.MAINTENANCE,
+        Equipment.status != EquipmentStatus.RETIRED)
 
     if max_fuel_level is not None:
         statement = statement.where(Equipment.fuel_level < max_fuel_level)

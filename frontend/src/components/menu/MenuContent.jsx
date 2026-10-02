@@ -6,10 +6,11 @@ import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import AtmIcon from '@mui/icons-material/Atm'
+import PrecisionManufacturingOutlinedIcon from '@mui/icons-material/PrecisionManufacturingOutlined';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
-import CallIcon from '@mui/icons-material/Call';
-import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import LogoutIcon from '@mui/icons-material/Logout'
 
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -18,10 +19,10 @@ import { useAuth } from "../../context/AuthContext.jsx";
 const mainListItems = [
   { text: 'Dashboard', icon: <HomeOutlinedIcon />, route: '/' },
   { text: 'Farms', icon: <AccountTreeOutlinedIcon />, route: '/farms' },
-  { text: 'Equipments', icon: <AtmIcon />, route: '/equipments' },
-  { text: 'Field Jobs', icon: <CallIcon />, route: '/field-jobs' },
-  { text: 'Operators', icon: <CallIcon />, route: '/operators' },
-  { text: 'Service Reports', icon: <AnalyticsOutlinedIcon />, route: '/service-reports' },  
+  { text: 'Equipments', icon: <PrecisionManufacturingOutlinedIcon />, route: '/equipments' },
+  { text: 'Field Jobs', icon: <AssignmentOutlinedIcon />, route: '/field-jobs' },
+  { text: 'Operators', icon: <PersonOutlinedIcon />, route: '/operators' },
+  { text: 'Service Reports', icon: <DescriptionOutlinedIcon />, route: '/service-reports' },
   { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' },
 ];
 

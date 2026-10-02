@@ -44,7 +44,7 @@ function OperatorDataGrid({ onSuccess }) {
     if (error) return <Alert severity="error">{error}</Alert>
 
     const openCreateDialog = () => {
-        setSelectedFarm(null);
+        setSelectedOperator(null);
         setFormValues({ name: '', farm_id: '' });
         setDialogOpen(true);
     }
