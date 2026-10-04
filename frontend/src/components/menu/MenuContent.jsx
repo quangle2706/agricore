@@ -16,21 +16,26 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext.jsx";
 
-const mainListItems = [
+const listItems = [
   { text: 'Dashboard', icon: <HomeOutlinedIcon />, route: '/' },
   { text: 'Farms', icon: <AccountTreeOutlinedIcon />, route: '/farms' },
   { text: 'Equipments', icon: <PrecisionManufacturingOutlinedIcon />, route: '/equipments' },
   { text: 'Field Jobs', icon: <AssignmentOutlinedIcon />, route: '/field-jobs' },
   { text: 'Operators', icon: <PersonOutlinedIcon />, route: '/operators' },
   { text: 'Service Reports', icon: <DescriptionOutlinedIcon />, route: '/service-reports' },
-  { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' },
+  // { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' },
 ];
 
-export default function MenuContent() {
+export default function MenuContent({ isAdmin }) {
   const navigate = useNavigate();
   const location = useLocation();
 
   const {logout} = useAuth();
+
+  const mainListItems = [
+    ...listItems,
+    (isAdmin && { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' })
+  ]
 
   return (
     <Stack sx={{ flexGrow: 1, p: 1, justifyContent: 'space-between' }}>

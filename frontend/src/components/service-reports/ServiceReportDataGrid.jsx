@@ -52,7 +52,9 @@ const columns = [
 ];
 
 
-function ServiceReportDataGrid({ onSuccess }) {
+function ServiceReportDataGrid({ onSuccess, userRole }) {
+    const canAddNew = userRole === 'Farm Operations Admin' || userRole === 'Field Hand';
+
     const [serviceReports, setServiceReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -134,7 +136,7 @@ function ServiceReportDataGrid({ onSuccess }) {
                     }}
                 />
             </Box>
-            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>
+            {canAddNew && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }} >Add New Service Report</DialogTitle>
                 <DialogContent>

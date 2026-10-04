@@ -11,7 +11,7 @@ export default function ServiceReports(){
 
   return (
     <>
-      <SideMenu />
+      <SideMenu userRole={user?.role} />
       <Box sx={{ ml: { xs: 0, md: '240px', lg: '200px' } }}>
         <AppHeader username={user?.sub} role={user?.role} onLogout={logout} />
         <Container maxWidth="lg" sx={{ mt: 4 }}>
@@ -19,7 +19,7 @@ export default function ServiceReports(){
             Service Reports
           </Typography>
           <Box sx={{ mb: 4 }}>
-            <ServiceReportDataGrid onSuccess={setNotification} />
+            <ServiceReportDataGrid onSuccess={setNotification} userRole={user?.role} />
           </Box>
         </Container>
         <Snackbar

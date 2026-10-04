@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    MenuItem
+    MenuItem, IconButton
  } from "@mui/material";
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
 
 const columns = [
@@ -14,7 +15,9 @@ const columns = [
 
 const ROLE_OPTIONS = ['Farm Operations Admin', 'Field Hand', 'Auditor'];
 
-function UserDataGrid({ onSuccess }) {
+function UserDataGrid({ onSuccess, userRole }) {
+    const isAdmin = userRole === 'Farm Operations Admin';
+
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -120,18 +123,55 @@ function UserDataGrid({ onSuccess }) {
         }
     };
 
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete user ${selectedUser.name}?`)) return;
+    // const handleDelete = async () => {
+    //     if (!window.confirm(`Delete user ${selectedUser.name}?`)) return;
+    //     try {
+    //         await apiClient.delete(`/auth/users/${selectedUser.id}`);
+    //         setDialogOpen(false);
+    //         setSelectedUser(null);
+    //         await fetchUsers();
+    //         onSuccess?.(`User ${selectedUser.username} deleted.`);
+    //     } catch {
+    //         setError('Could not delete user');
+    //     }
+    // };
+
+    const handleDeleteRow = async (user) => {
+        if (!window.confirm(`Delete user ${user.username}?`)) return;
         try {
-            await apiClient.delete(`/auth/users/${selectedUser.id}`);
-            setDialogOpen(false);
-            setSelectedUser(null);
+            await apiClient.delete(`/auth/users/${user.id}`);
             await fetchUsers();
-            onSuccess?.(`User ${selectedUser.username} deleted.`);
+            onSuccess?.(`User ${user.username} deleted.`);
         } catch {
             setError('Could not delete user');
         }
     };
+
+    const gridColumns = [
+        ...columns,
+        (isAdmin && {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 80,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <IconButton
+                    aria-label={`Delete farm ${row.name}`}
+                    color="error"
+                    size="small"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRow(row);
+                    }}
+                >
+                    <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+            ),
+        }),
+    ];
 
     return (
         <>
@@ -139,7 +179,7 @@ function UserDataGrid({ onSuccess }) {
                 <DataGrid
                     loading={loading}
                     rows={users}
-                    columns={columns}
+                    columns={gridColumns}
                     getRowId={(row) => row.id}
                     onRowClick={handleRowClick}
                     rowHeight={44}
@@ -160,7 +200,7 @@ function UserDataGrid({ onSuccess }) {
                     }}
                 />
             </Box>
-            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add User</Button>
+            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add User</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
                 <DialogContent>
@@ -179,7 +219,7 @@ function UserDataGrid({ onSuccess }) {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    {selectedUser && <Button color="error" onClick={handleDelete}>Delete</Button>}
+                    {/* {selectedUser && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
                     <Button variant="contained" onClick={selectedUser ? handleUpdate : handleCreate}>
                         {selectedUser ? 'Save changes' : 'Create'}
                     </Button>

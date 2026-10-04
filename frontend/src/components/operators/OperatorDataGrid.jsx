@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
-    Button, Dialog, DialogActions, DialogContent, DialogTitle
+    Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton
  } from "@mui/material";
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
 
 const columns = [
@@ -11,7 +12,9 @@ const columns = [
     { field: 'farm_id', headerName: 'Farm ID', width: 130, type: 'number'},
 ];
 
-function OperatorDataGrid({ onSuccess }) {
+function OperatorDataGrid({ onSuccess, userRole }) {
+    const isAdmin = userRole === 'Farm Operations Admin';
+
     const [operators, setOperators] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -54,6 +57,8 @@ function OperatorDataGrid({ onSuccess }) {
     }
 
     const handleRowClick = ({ row }) => {
+        if (!isAdmin) return;
+
         setSelectedOperator(row);
         setFormValues({
             name: row.name,
@@ -94,18 +99,55 @@ function OperatorDataGrid({ onSuccess }) {
         }
     };
 
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete operator ${selectedOperator.name}?`)) return;
+    // const handleDelete = async () => {
+    //     if (!window.confirm(`Delete operator ${selectedOperator.name}?`)) return;
+    //     try {
+    //         await apiClient.delete(`/operators/${selectedOperator.id}`);
+    //         setDialogOpen(false);
+    //         setSelectedOperator(null);
+    //         await fetchOperators();
+    //         onSuccess?.(`Operator ${selectedOperator.name} deleted.`);
+    //     } catch {
+    //         setError('Could not delete operator');
+    //     }
+    // };
+
+    const handleDeleteRow = async (operator) => {
+        if (!window.confirm(`Delete operator ${operator.name}?`)) return;
         try {
-            await apiClient.delete(`/operators/${selectedOperator.id}`);
-            setDialogOpen(false);
-            setSelectedOperator(null);
+            await apiClient.delete(`/operators/${operator.id}`);
             await fetchOperators();
-            onSuccess?.(`Operator ${selectedOperator.name} deleted.`);
+            onSuccess?.(`Operator ${operator.name} deleted.`);
         } catch {
             setError('Could not delete operator');
         }
     };
+
+    const gridColumns = [
+        ...columns,
+        (isAdmin && {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 80,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <IconButton
+                    aria-label={`Delete farm ${row.name}`}
+                    color="error"
+                    size="small"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRow(row);
+                    }}
+                >
+                    <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+            ),
+        }),
+    ];
 
     return (
         <>
@@ -113,7 +155,7 @@ function OperatorDataGrid({ onSuccess }) {
                 <DataGrid
                     loading={loading}
                     rows={operators}
-                    columns={columns}
+                    columns={gridColumns}
                     getRowId={(row) => row.id}
                     onRowClick={handleRowClick}
                     rowHeight={44}
@@ -134,7 +176,7 @@ function OperatorDataGrid({ onSuccess }) {
                     }}
                 />
             </Box>
-            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Operator</Button>
+            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Operator</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedOperator ? 'Edit Operator' : 'Add New Operator'}</DialogTitle>
                 <DialogContent>
@@ -145,7 +187,7 @@ function OperatorDataGrid({ onSuccess }) {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    {selectedOperator && <Button color="error" onClick={handleDelete}>Delete</Button>}
+                    {/* {selectedOperator && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
                     <Button variant="contained" onClick={selectedOperator ? handleUpdate : handleCreate}>
                         {selectedOperator ? 'Save changes' : 'Create'}
                     </Button>

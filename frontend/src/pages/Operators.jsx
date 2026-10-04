@@ -13,7 +13,7 @@ function Operators() {
 
     return (
         <>
-            <SideMenu />
+            <SideMenu userRole={user?.role} />
             <Box sx={{ ml: { xs: 0, md: '240px', lg: '200px' } }}>
                 <AppHeader username={user?.sub} role={user?.role} onLogout={logout} />
                 <Container maxWidth="lg" sx={{ mt: 4 }}>
@@ -21,7 +21,7 @@ function Operators() {
                         Operators
                     </Typography>
                     <Box sx={{ mb: 4 }}>
-                        <OperatorDataGrid onSuccess={setNotification} />
+                        <OperatorDataGrid onSuccess={setNotification} userRole={user?.role} />
                     </Box>
                 </Container>
                 <Snackbar open={Boolean(notification)} autoHideDuration={7000} onClose={() => setNotification(null)}>

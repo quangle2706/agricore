@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    MenuItem
+    MenuItem, IconButton
  } from "@mui/material";
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
 
 const columns = [
@@ -18,7 +19,9 @@ const columns = [
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'Critical'];
 const STATUS_OPTIONS = ['Pending', 'In-Progress', 'Completed', 'Failed'];
 
-function FieldJobDataGrid({ onSuccess }) {
+function FieldJobDataGrid({ onSuccess, userRole }) {
+    const isAdmin = userRole === 'Farm Operations Admin';
+
     const [fieldJobs, setFieldJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -64,6 +67,8 @@ function FieldJobDataGrid({ onSuccess }) {
     }
 
     const handleRowClick = ({ row }) => {
+        if (!isAdmin) return;
+
         setSelectedFieldJob(row);
         setFormValues({
             title: row.title,
@@ -111,18 +116,55 @@ function FieldJobDataGrid({ onSuccess }) {
         }
     };
 
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete field job ${selectedFieldJob.title}?`)) return;
+    // const handleDelete = async () => {
+    //     if (!window.confirm(`Delete field job ${selectedFieldJob.title}?`)) return;
+    //     try {
+    //         await apiClient.delete(`/field-jobs/${selectedFieldJob.id}`);
+    //         setDialogOpen(false);
+    //         setSelectedFieldJob(null);
+    //         await fetchFieldJobs();
+    //         onSuccess?.(`Field Job ${selectedFieldJob.title} deleted.`);
+    //     } catch {
+    //         setError('Could not delete farm');
+    //     }
+    // };
+
+    const handleDeleteRow = async (job) => {
+        if (!window.confirm(`Delete field job ${job.title}?`)) return;
         try {
-            await apiClient.delete(`/field-jobs/${selectedFieldJob.id}`);
-            setDialogOpen(false);
-            setSelectedFieldJob(null);
+            await apiClient.delete(`/field-jobs/${job.id}`);
             await fetchFieldJobs();
-            onSuccess?.(`Field Job ${selectedFieldJob.title} deleted.`);
+            onSuccess?.(`Field job ${job.title} deleted.`);
         } catch {
-            setError('Could not delete farm');
+            setError('Could not delete field job');
         }
     };
+
+    const gridColumns = [
+        ...columns,
+        (isAdmin && {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 80,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <IconButton
+                    aria-label={`Delete farm ${row.name}`}
+                    color="error"
+                    size="small"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRow(row);
+                    }}
+                >
+                    <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+            ),
+        }),
+    ];
 
     return (
         <>
@@ -130,7 +172,7 @@ function FieldJobDataGrid({ onSuccess }) {
                 <DataGrid
                     loading={loading}
                     rows={fieldJobs}
-                    columns={columns}
+                    columns={gridColumns}
                     getRowId={(row) => row.id}
                     onRowClick={handleRowClick}
                     rowHeight={44}
@@ -151,7 +193,7 @@ function FieldJobDataGrid({ onSuccess }) {
                     }}
                 />
             </Box>
-            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>
+            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedFieldJob ? 'Edit Field Job' : 'Add New Field Job'}</DialogTitle>
                 <DialogContent>
@@ -173,7 +215,7 @@ function FieldJobDataGrid({ onSuccess }) {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    {selectedFieldJob && <Button color="error" onClick={handleDelete}>Delete</Button>}
+                    {/* {selectedFieldJob && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
                     <Button variant="contained" onClick={selectedFieldJob ? handleUpdate : handleCreate}>
                         {selectedFieldJob ? 'Save changes' : 'Create'}
                     </Button>

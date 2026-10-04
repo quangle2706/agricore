@@ -21,7 +21,7 @@ export default function DashBoard(){
 
   return (
     <>
-      <SideMenu />
+      <SideMenu userRole={user?.role} />
       <Box sx={{ ml: { xs: 0, md: '240px', lg: '200px' } }}>
         <AppHeader username={user?.sub} role={user?.role} onLogout={logout} />
         <Container maxWidth="lg" sx={{ mt: 4 }}>
@@ -44,7 +44,7 @@ export default function DashBoard(){
             <EquipmentWithFieldJobRatioDataGrid />
           </Box>
           <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
-            4. Farms have more than 30% Maintenance Flags
+            4. Farms have more than 30% equipments flagged as Maintenance
           </Typography>
           <Box sx={{ mb: 4 }}>
             <FarmMaintenanceDataGrid />

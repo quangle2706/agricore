@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
-    Button, Dialog, DialogActions, DialogContent, DialogTitle
+    Button, Dialog, DialogActions, DialogContent, DialogTitle,
+    IconButton
  } from "@mui/material";
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
 
 const columns = [
@@ -13,7 +15,9 @@ const columns = [
     { field: 'supervisor_id', headerName: 'Supervisor ID', width: 130, type: 'number'},
 ];
 
-function FarmDataGrid({ onSuccess }) {
+function FarmDataGrid({ onSuccess, userRole }) {
+    const isAdmin = userRole === 'Farm Operations Admin';
+
     const [farms, setFarms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -58,6 +62,8 @@ function FarmDataGrid({ onSuccess }) {
     }
 
     const handleRowClick = ({ row }) => {
+        if (!isAdmin) return;
+        
         setSelectedFarm(row);
         setFormValues({
             name: row.name,
@@ -103,18 +109,55 @@ function FarmDataGrid({ onSuccess }) {
         }
     };
 
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete farm ${selectedFarm.name}?`)) return;
+    // const handleDelete = async () => {
+    //     if (!window.confirm(`Delete farm ${selectedFarm.name}?`)) return;
+    //     try {
+    //         await apiClient.delete(`/farms/${selectedFarm.id}`);
+    //         setDialogOpen(false);
+    //         setSelectedFarm(null);
+    //         await fetchFarms();
+    //         onSuccess?.(`Farm ${selectedFarm.name} deleted.`);
+    //     } catch {
+    //         setError('Could not delete farm');
+    //     }
+    // };
+
+    const handleDeleteRow = async (farm) => {
+        if (!window.confirm(`Delete farm ${farm.name}?`)) return;
         try {
-            await apiClient.delete(`/farms/${selectedFarm.id}`);
-            setDialogOpen(false);
-            setSelectedFarm(null);
+            await apiClient.delete(`/farms/${farm.id}`);
             await fetchFarms();
-            onSuccess?.(`Farm ${selectedFarm.name} deleted.`);
+            onSuccess?.(`Farm ${farm.name} deleted.`);
         } catch {
             setError('Could not delete farm');
         }
     };
+
+    const gridColumns = [
+        ...columns,
+        (isAdmin && {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 80,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <IconButton
+                    aria-label={`Delete farm ${row.name}`}
+                    color="error"
+                    size="small"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRow(row);
+                    }}
+                >
+                    <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+            ),
+        }),
+    ];
 
     return (
         <>
@@ -122,7 +165,7 @@ function FarmDataGrid({ onSuccess }) {
                 <DataGrid
                     loading={loading}
                     rows={farms}
-                    columns={columns}
+                    columns={gridColumns}
                     getRowId={(row) => row.id}
                     onRowClick={handleRowClick}
                     rowHeight={44}
@@ -143,7 +186,7 @@ function FarmDataGrid({ onSuccess }) {
                     }}
                 />
             </Box>
-            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Farm</Button>
+            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Farm</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedFarm ? 'Edit Farm' : 'Add New Farm'}</DialogTitle>
                 <DialogContent>
@@ -156,7 +199,7 @@ function FarmDataGrid({ onSuccess }) {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    {selectedFarm && <Button color="error" onClick={handleDelete}>Delete</Button>}
+                    {/* {selectedFarm && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
                     <Button variant="contained" onClick={selectedFarm ? handleUpdate : handleCreate}>
                         {selectedFarm ? 'Save changes' : 'Create'}
                     </Button>

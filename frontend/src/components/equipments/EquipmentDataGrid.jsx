@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    LinearProgress, Typography, MenuItem
+    LinearProgress, Typography, MenuItem, IconButton
  } from "@mui/material";
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
 
 function FuelLevelCell({ value }) {
@@ -22,16 +23,18 @@ function FuelLevelCell({ value }) {
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 50}, // default type is String
-    { field: 'serial_number', headerName: 'Serial Number', width: 150},
+    { field: 'serial_number', headerName: 'Serial Number', width: 120},
     { field: 'model', headerName: 'Model', width: 160},
     { field: 'status', headerName: 'Status', width: 130},
-    { field: 'fuel_level', headerName: 'Fuel Level %', width: 250, type: 'number', renderCell: (params) => <FuelLevelCell value={params.value} /> }, 
+    { field: 'fuel_level', headerName: 'Fuel Level %', width: 180, type: 'number', renderCell: (params) => <FuelLevelCell value={params.value} /> }, 
     { field: 'farm_id', headerName: 'Supervisor ID', width: 130, type: 'number'},
 ];
 
 const STATUS_OPTIONS = ['Idle', 'In-Use', 'Maintenance', 'Retired'];
 
-function EquipmentDataGrid({ onSuccess }) {
+function EquipmentDataGrid({ onSuccess, userRole }) {
+    const isAdmin = userRole === 'Farm Operations Admin';
+
     const [equipments, setEquipments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -77,6 +80,8 @@ function EquipmentDataGrid({ onSuccess }) {
     }
 
     const handleRowClick = ({ row }) => {
+        if (!isAdmin) return;
+
         setSelectedEquipment(row);
         setFormValues({
             serial_number: row.serial_number,
@@ -126,18 +131,55 @@ function EquipmentDataGrid({ onSuccess }) {
         }
     };
 
-    const handleDelete = async () => {
-        if (!window.confirm(`Delete equipment ${selectedEquipment.serial_number}?`)) return;
+    // const handleDelete = async () => {
+    //     if (!window.confirm(`Delete equipment ${selectedEquipment.serial_number}?`)) return;
+    //     try {
+    //         await apiClient.delete(`/equipments/${selectedEquipment.id}`);
+    //         setDialogOpen(false);
+    //         setSelectedEquipment(null);
+    //         await fetchEquipments();
+    //         onSuccess?.(`Equipment ${selectedEquipment.serial_number} deleted.`);
+    //     } catch {
+    //         setError('Could not delete equipment');
+    //     }
+    // };
+
+    const handleDeleteRow = async (equipment) => {
+        if (!window.confirm(`Delete equipment ${equipment.name}?`)) return;
         try {
-            await apiClient.delete(`/equipments/${selectedEquipment.id}`);
-            setDialogOpen(false);
-            setSelectedEquipment(null);
+            await apiClient.delete(`/equipments/${equipment.id}`);
             await fetchEquipments();
-            onSuccess?.(`Equipment ${selectedEquipment.serial_number} deleted.`);
+            onSuccess?.(`Equipment ${equipment.serial_number} deleted.`);
         } catch {
             setError('Could not delete equipment');
         }
     };
+
+    const gridColumns = [
+        ...columns,
+        (isAdmin && {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 80,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <IconButton
+                    aria-label={`Delete farm ${row.name}`}
+                    color="error"
+                    size="small"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRow(row);
+                    }}
+                >
+                    <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+            ),
+        }),
+    ];
 
     return (
         <>
@@ -145,7 +187,7 @@ function EquipmentDataGrid({ onSuccess }) {
                 <DataGrid
                     loading={loading}
                     rows={equipments}
-                    columns={columns}
+                    columns={gridColumns}
                     getRowId={(row) => row.id}
                     onRowClick={handleRowClick}
                     rowHeight={44}
@@ -166,7 +208,7 @@ function EquipmentDataGrid({ onSuccess }) {
                     }}
                 />
             </Box>
-            <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
+            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
                 <DialogContent>
@@ -184,7 +226,7 @@ function EquipmentDataGrid({ onSuccess }) {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    {selectedEquipment && <Button color="error" onClick={handleDelete}>Delete</Button>}
+                    {/* {selectedEquipment && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
                     <Button variant="contained" onClick={selectedEquipment ? handleUpdate : handleCreate}>
                         {selectedEquipment ? 'Save changes' : 'Create'}
                     </Button>
