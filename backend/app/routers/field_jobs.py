@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user, require_role
 from app.models import FieldJob, FieldJobPriority, FieldJobStatus, User, UserRole, Equipment, Operator
-from app.schemas.field_job import FieldJobCreate, FieldJobRead, DiscrepancyRead, FieldJobRatioRead
+from app.schemas.field_job import (
+    DiscrepancyRead,
+    FieldJobCreate,
+    FieldJobRatioRead,
+    FieldJobRead,
+    FieldJobStatusUpdate,
+)
 
 router = APIRouter(prefix="/field-jobs", tags=["field-jobs"])
 
@@ -101,6 +107,24 @@ async def delete_field_job(
     await db.delete(field_job)
     await db.commit()
 
+#Update status of a field job
+@router.patch("/{field_job_id}/status", response_model=FieldJobRead)
+async def update_field_job_status(
+    field_job_id: int,
+    payload: FieldJobStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN, UserRole.FIELD_HAND))
+) -> FieldJobRead:
+    field_job = await db.get(FieldJob, field_job_id)
+    if field_job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Field Job {field_job_id} not found"
+        )
+    field_job.status = payload.status
+    await db.commit()
+    await db.refresh(field_job)
+    return field_job
 
 #--------
 #Question 2:
@@ -179,4 +203,3 @@ async def get_completion_failure_ratio(
             )
         ) for row in rows
     ]
-
