@@ -25,31 +25,31 @@ export default function DashBoard(){
       <Box sx={{ ml: { xs: 0, md: '240px', lg: '200px' } }}>
         <AppHeader username={user?.sub} role={user?.role} onLogout={logout} />
         <Container maxWidth="lg" sx={{ mt: 4 }}>
-          <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
+          <Typography gutterBottom sx={{  textAlign:'left',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
             1. Active Equipment Units have low fuel level (below threshold)
           </Typography>
           <Box sx={{ mb: 4 }}>
             <ActiveLowFuelEquipmentDataGrid />
           </Box>
-          <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
+          <Typography gutterBottom sx={{  textAlign:'left',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
             2. Co-Location Discrepancies
           </Typography>
           <Box sx={{ mb: 4 }}>
             <DiscrepancyDataGrid />
           </Box>
-          <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
+          <Typography gutterBottom sx={{  textAlign:'left',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
             3. Completion/Failure Ratio by Equipment Model
           </Typography>
           <Box sx={{ mb: 4 }}>
             <EquipmentWithFieldJobRatioDataGrid />
           </Box>
-          <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
+          <Typography gutterBottom sx={{  textAlign:'left',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
             4. Farms have more than 30% equipments flagged as Maintenance
           </Typography>
           <Box sx={{ mb: 4 }}>
             <FarmMaintenanceDataGrid />
           </Box>
-          <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
+          <Typography gutterBottom sx={{  textAlign:'left',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
             5. Reporting Lines - Active Operators/Farmhands Under A Specific Supervisor
           </Typography>
           <Box sx={{ mb: 4 }}>

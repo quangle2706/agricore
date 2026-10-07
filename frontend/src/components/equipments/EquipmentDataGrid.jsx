@@ -210,7 +210,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
             </Box>
             {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
+                <DialogTitle sx={{ textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
                         <TextField label="Serial Number" value={formValues.serial_number} onChange={handleFieldChange('serial_number')} />

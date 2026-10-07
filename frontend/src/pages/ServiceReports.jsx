@@ -15,7 +15,7 @@ export default function ServiceReports(){
       <Box sx={{ ml: { xs: 0, md: '240px', lg: '200px' } }}>
         <AppHeader username={user?.sub} role={user?.role} onLogout={logout} />
         <Container maxWidth="lg" sx={{ mt: 4 }}>
-          <Typography gutterBottom sx={{  textAlign:'left', color: 'black',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
+          <Typography gutterBottom sx={{  textAlign:'left',  mb: '1rem', fontSize: '0.9rem', fontWeight: '600' }}>
             Service Reports
           </Typography>
           <Box sx={{ mb: 4 }}>

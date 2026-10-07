@@ -202,7 +202,7 @@ function UserDataGrid({ onSuccess, userRole }) {
             </Box>
             {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add User</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
+                <DialogTitle sx={{ textAlign: 'center' }}>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
                         {formError && <Alert severity="error">{formError}</Alert>}

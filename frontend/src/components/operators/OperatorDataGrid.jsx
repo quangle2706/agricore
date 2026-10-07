@@ -178,7 +178,7 @@ function OperatorDataGrid({ onSuccess, userRole }) {
             </Box>
             {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Operator</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle sx={{ color: 'black', textAlign: 'center' }}>{selectedOperator ? 'Edit Operator' : 'Add New Operator'}</DialogTitle>
+                <DialogTitle sx={{ textAlign: 'center' }}>{selectedOperator ? 'Edit Operator' : 'Add New Operator'}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
                         <TextField label="Name" value={formValues.name} onChange={handleFieldChange('name')} />

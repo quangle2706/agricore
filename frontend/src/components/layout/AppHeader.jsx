@@ -5,6 +5,7 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import SideMenuMobile from "../menu/SideMenuMobile";
 
 import { useState } from "react";
+import ThemeToggle from "../utilities/ThemeToggle";
 
 function AppHeader({username, role, onLogout}) {
     const [open, setOpen] = useState(false);
@@ -22,6 +23,7 @@ function AppHeader({username, role, onLogout}) {
                         <Typography variant="body2">{username.toUpperCase()} ({role})</Typography>
                     </Box>
                 )}
+                <ThemeToggle />
                 <SideMenuMobile open={open} toggleDrawer={toggleDrawer} />
             </Toolbar>
         </AppBar>

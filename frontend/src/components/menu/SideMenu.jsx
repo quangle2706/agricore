@@ -24,8 +24,10 @@ export default function SideMenu({ userRole }) {
       sx={{
         display: { xs: 'none', md: 'block' },
         [`& .${drawerClasses.paper}`]: {
-            backgroundColor: 'primary.main',
-            color: '#FFFFFF',
+            bgcolor: (theme) => 
+              theme.palette.mode === "light" ? theme.palette.primary.main : theme.palette.background.paper,
+            color: (theme) =>
+              theme.palette.mode === "light" ? "#fff" : 'text.primary',
         },
       }}
     >

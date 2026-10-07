@@ -138,7 +138,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
             </Box>
             {canAddNew && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle sx={{ color: 'black', textAlign: 'center' }} >Add New Service Report</DialogTitle>
+                <DialogTitle sx={{ textAlign: 'center' }} >Add New Service Report</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
                         <TextField label="Field Job ID" type="number" value={formValues.field_job_id} onChange={handleFieldChange('field_job_id')} />
