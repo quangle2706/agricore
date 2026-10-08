@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginForm from './components/auth/LoginForm';
@@ -12,15 +12,27 @@ import Users from './pages/Users';
 
 function AppContent() {
     const { isAuthenticated } = useAuth();
-    return isAuthenticated ? <Routes>
-        <Route path='/' element={<DashBoard />} />
-        <Route path='/farms' element={<Farms />} />
-        <Route path='/equipments' element={<Equipments />} />
-        <Route path='/field-jobs' element={<FieldJobs />} />
-        <Route path='/operators' element={<Operators />} />
-        <Route path='/service-reports' element={<ServiceReports />} />
-        <Route path='/users' element={<Users />} />
-    </Routes> : <LoginForm />;
+    return <Routes>
+        <Route
+            path='/login'
+            element={isAuthenticated ? <Navigate to='/' replace /> : <LoginForm />}
+        />
+        <Route
+            element={isAuthenticated ? <Outlet /> : <Navigate to='/login' replace />}
+        >
+            <Route path='/' element={<DashBoard />} />
+            <Route path='/farms' element={<Farms />} />
+            <Route path='/equipments' element={<Equipments />} />
+            <Route path='/field-jobs' element={<FieldJobs />} />
+            <Route path='/operators' element={<Operators />} />
+            <Route path='/service-reports' element={<ServiceReports />} />
+            <Route path='/users' element={<Users />} />
+        </Route>
+        <Route
+            path='*'
+            element={<Navigate to={isAuthenticated ? '/' : '/login'} replace />}
+        />
+    </Routes>;
 }
 
 function App() {
