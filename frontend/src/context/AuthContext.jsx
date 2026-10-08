@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import apiClient from "../api/client";
+import { AUTH_CHANGE_EVENT, authClient, getTokens, setSession, logoutSession, refreshSession } from "../api/client";
 
 const AuthContext = createContext(null);
 
@@ -9,24 +10,66 @@ function decodeToken(token) {
 }
 
 export function AuthProvider({children}) {
-    const [token, setToken] = useState(() => localStorage.getItem('agricoreToken'));
+    // const [token, setToken] = useState(() => localStorage.getItem('agricoreToken'));
+    const [token, setToken] = useState(() => getTokens().access_token ?? null,);
+
+    // synchronize React state when login, refresh or logout -> change token.
+    useEffect(() => {
+        const syncToken = () => {
+            setToken(getTokens().access_token ?? null);
+        };
+
+        window.addEventListener(AUTH_CHANGE_EVENT, syncToken);
+        window.addEventListener("storage", syncToken);
+
+        syncToken();
+
+        return () => {
+            window.removeEventListener(AUTH_CHANGE_EVENT, syncToken);
+            window.removeEventListener("storage", syncToken);
+        };
+    }, []);
+
     const user = useMemo(() => (token ? decodeToken(token) : null), [token]);
+
+    useEffect(() => {
+        if (!token || typeof user?.exp !== "number") {
+            return;
+        }
+
+        const refreshDelay = Math.max(user.exp * 1000 - Date.now() - 30_000, 0);
+        const timeoutId = window.setTimeout(() => {
+            refreshSession().catch((error) => {
+                console.error("Failed to refresh authentication session", error);
+            });
+        }, refreshDelay);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [token, user?.exp]);
 
     const login = async (username, password) => {
         const formData = new URLSearchParams();
         formData.append('username', username);
         formData.append('password', password);
 
-        const response = await apiClient.post('/auth/token', formData, {
+        const response = await authClient.post('/auth/token', formData, {
             headers: {"Content-Type": 'application/x-www-form-urlencoded'},
         });
-        localStorage.setItem('agricoreToken', response.data.access_token);
-        setToken(response.data.access_token);
+
+        // localStorage.setItem('agricoreToken', response.data.access_token);
+        // setToken(response.data.access_token);
+
+        if (!response.data.access_token || !response.data.refresh_token) {
+            throw new Error("Login response is missing tokens");
+        }
+
+        setSession(response.data);
     }
 
-    const logout = () => {
-        localStorage.removeItem('agricoreToken');
-        setToken(null);
+    const logout = async () => {
+        // localStorage.removeItem('agricoreToken');
+        // setToken(null);
+        await logoutSession();
     }
 
     const value = {token, user, isAuthenticated: Boolean(token), login, logout};
@@ -40,4 +83,3 @@ export function useAuth() {
     }
     return context;
 }
-

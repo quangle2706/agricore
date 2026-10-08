@@ -1,4 +1,10 @@
+import secrets
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
+from app.routers import auth as auth_router
 from tests.conftest import auth_header
+
 
 #Happy path test - for when the correct username + password is provided
 async def test_login_succeeds_with_correct_credentials(client, seeded_users):
@@ -38,3 +44,5 @@ async def test_register_rejects_case_insensitive_duplicate_username(client, seed
     payload = {"username": "TEST_ADMIN", "password": "SomePass123!", "role": "Farm Operations Admin"}
     response = await client.post("/auth/register", json=payload, headers=auth_header(seeded_users["admin"]))
     assert response.status_code == 400
+
+

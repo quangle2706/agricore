@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext";
 
 function LoginForm() {
     const { login } = useAuth();
+    const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -13,6 +15,7 @@ function LoginForm() {
         setError(null);
         try {
             await login(username, password);
+            navigate('/', { replace: true });
         } catch (err) {
             if (err.response?.status === 401) {
                 setError('Incorrect Username or Password');
