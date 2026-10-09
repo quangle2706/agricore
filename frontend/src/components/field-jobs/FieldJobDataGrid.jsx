@@ -5,6 +5,7 @@ import { Alert, Box, TextField, CircularProgress, Stack,
     MenuItem, IconButton
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import apiClient from "../../api/client";
 
 const columns = [
@@ -21,13 +22,16 @@ const STATUS_OPTIONS = ['Pending', 'In-Progress', 'Completed', 'Failed'];
 
 function FieldJobDataGrid({ onSuccess, userRole }) {
     const isAdmin = userRole === 'Farm Operations Admin';
+    const canUpdateStatus = isAdmin || userRole === 'Field Hand';
 
     const [fieldJobs, setFieldJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
     const [selectedFieldJob, setSelectedFieldJob] = useState(null);
+    const [statusValue, setStatusValue] = useState('');
     const [formValues, setFormValues] = useState({
         title: '',
         priority: '',
@@ -116,6 +120,26 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
         }
     };
 
+    const openStatusDialog = (job) => {
+        setSelectedFieldJob(job);
+        setStatusValue(job.status);
+        setStatusDialogOpen(true);
+    };
+
+    const handleStatusUpdate = async () => {
+        try {
+            await apiClient.patch(`/field-jobs/${selectedFieldJob.id}/status`, {
+                status: statusValue,
+            });
+            setStatusDialogOpen(false);
+            setSelectedFieldJob(null);
+            await fetchFieldJobs();
+            onSuccess?.(`Field Job ${selectedFieldJob.title} status updated.`);
+        } catch {
+            setError('Could not update field job status');
+        }
+    };
+
     // const handleDelete = async () => {
     //     if (!window.confirm(`Delete field job ${selectedFieldJob.title}?`)) return;
     //     try {
@@ -142,28 +166,43 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
 
     const gridColumns = [
         ...columns,
-        (isAdmin && {
+        ...(canUpdateStatus ? [{
             field: 'actions',
             headerName: 'Actions',
-            width: 80,
+            width: isAdmin ? 100 : 60,
             sortable: false,
             filterable: false,
             align: 'center',
             headerAlign: 'center',
             renderCell: ({ row }) => (
-                <IconButton
-                    aria-label={`Delete farm ${row.name}`}
-                    color="error"
-                    size="small"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        handleDeleteRow(row);
-                    }}
-                >
-                    <DeleteOutlinedIcon fontSize="small" />
-                </IconButton>
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton
+                        aria-label={`Update status for field job ${row.title}`}
+                        title="Update status"
+                        size="small"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            openStatusDialog(row);
+                        }}
+                    >
+                        <EditOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    {isAdmin && (
+                        <IconButton
+                            aria-label={`Delete field job ${row.title}`}
+                            color="error"
+                            size="small"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                handleDeleteRow(row);
+                            }}
+                        >
+                            <DeleteOutlinedIcon fontSize="small" />
+                        </IconButton>
+                    )}
+                </Stack>
             ),
-        }),
+        }] : []),
     ];
 
     return (
@@ -219,6 +258,27 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                     <Button variant="contained" onClick={selectedFieldJob ? handleUpdate : handleCreate}>
                         {selectedFieldJob ? 'Save changes' : 'Create'}
                     </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog open={statusDialogOpen} onClose={() => setStatusDialogOpen(false)}>
+                <DialogTitle sx={{ textAlign: 'center' }}>Update Field Job Status</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        select
+                        fullWidth
+                        label="Status"
+                        value={statusValue}
+                        onChange={(event) => setStatusValue(event.target.value)}
+                        sx={{ mt: 1, minWidth: 300 }}
+                    >
+                        {STATUS_OPTIONS.map((option) => (
+                            <MenuItem key={option} value={option}>{option}</MenuItem>
+                        ))}
+                    </TextField>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
+                    <Button variant="contained" onClick={handleStatusUpdate}>Update Status</Button>
                 </DialogActions>
             </Dialog>
         </>
