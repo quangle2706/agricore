@@ -243,3 +243,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+demo.md
