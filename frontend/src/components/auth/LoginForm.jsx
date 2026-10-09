@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext";
+import ThemeToggle from "../utilities/ThemeToggle";
 
 function LoginForm() {
     const { login } = useAuth();
@@ -28,9 +29,12 @@ function LoginForm() {
     return (
         <Box sx={{display: 'flex', justifyContent: 'center', mt: 8}}>
             <Paper component="form" onSubmit={handleSubmit} variant="outlined" sx={{ p: 4, width: 320 }}>
-                <Typography variant="h6" gutterBottom>
-                    Agricore Login
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography variant="h6" gutterBottom>
+                        Agricore Login
+                    </Typography>
+                    <ThemeToggle />
+                </Box>
                 {error && <Alert severity="error" sx={{mb: 2}}>{error}</Alert>}
                 <TextField label="Username" fullWidth margin="normal" value={username}
                     onChange={(event) => setUsername(event.target.value)}
