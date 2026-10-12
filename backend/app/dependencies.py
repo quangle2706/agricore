@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.models import User, UserRole
 from app.security import decode_access_token
+from app.permissions import get_role_permissions
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
@@ -52,3 +53,16 @@ def require_role(*allowed_roles: UserRole):
             )
         return current_user
     return role_checker
+
+def require_permission(required_permission: str):
+    async def checker(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        permissions = get_role_permissions(current_user.role)
+        if required_permission not in permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        return current_user
+    return checker

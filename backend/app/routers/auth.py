@@ -5,15 +5,16 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, require_role
+from app.dependencies import get_db, require_role, require_permission, get_current_user
 from app.models import User, UserRole
-from app.schemas.user import Token, UserCreate, UserRead, UserUpdate
+from app.schemas.user import Token, UserCreate, UserRead, UserUpdate, CurrentUserRead
 from app.security import create_access_token, hash_password, verify_password
 
 from fastapi import Response
 from datetime import datetime, timezone
 from app.schemas.token import TokenPair, RefreshTokenRequest
 from app.services.refresh_tokens import add_refresh_token, get_locked_token, revoke_chain, unauthorized, validate_refresh_token
+from app.permissions import get_role_name, get_role_permissions
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -168,7 +169,8 @@ async def logout(
 @router.get("/users", response_model=list[UserRead])
 async def list_users(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("user:read"))
 ) -> list[UserRead]:
     statement = select(User)
     result = await db.execute(statement)
@@ -180,7 +182,8 @@ async def update_user(
     user_id: int,
     payload: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+    _: User = Depends(require_permission("user:update"))
 ) -> User:
     user = await db.get(User, user_id)
     if user is None:
@@ -197,10 +200,24 @@ async def update_user(
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+    _: User = Depends(require_permission("user:delete"))
 ):
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
     await db.delete(user)
     await db.commit()
+
+#--- get permissions of user
+@router.get("/me", response_model=CurrentUserRead)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    return CurrentUserRead(
+        username=current_user.username,
+        role=get_role_name(current_user.role),
+        permissions=sorted(
+            get_role_permissions(current_user.role)
+        ),
+    )

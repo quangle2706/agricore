@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role
+from app.dependencies import get_db, get_current_user, require_role, require_permission
 from app.models import Farm, Equipment, EquipmentStatus, User, UserRole
 from app.schemas.farm import FarmRead, FarmCreate, FarmMaintenanceRead
 
@@ -17,7 +17,8 @@ router = APIRouter(prefix="/farms", tags=["farms"])
 async def create_farm(
     payload: FarmCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("farm:create"))
 ) -> FarmRead:
     farm = Farm(**payload.model_dump())
     db.add(farm)
@@ -30,7 +31,8 @@ async def create_farm(
 @router.get("", response_model=list[FarmRead])
 async def list_farms(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user)
+    # _: User = Depends(get_current_user)
+    _: User = Depends(require_permission("farm:read"))
 ) -> list[FarmRead]:
     statement = select(Farm).order_by(Farm.id)
     result = await db.execute(statement)
@@ -42,7 +44,8 @@ async def update_farm(
     farm_id: int,
     payload: FarmCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("farm:update"))
 ) -> FarmRead:
     farm = await db.get(Farm, farm_id)
     if farm is None:
@@ -57,7 +60,8 @@ async def update_farm(
 async def delete_farm(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("farm:delete"))
 ):
     farm = await db.get(Farm, farm_id)
     if farm is None:

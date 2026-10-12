@@ -19,3 +19,9 @@ class UserRead(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+# for role-based permissions
+class CurrentUserRead(BaseModel):
+    username: str
+    role: str
+    permissions: list[str]

@@ -9,7 +9,7 @@ from app.config import settings
 from sqlalchemy import select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role
+from app.dependencies import get_db, get_current_user, require_role, require_permission
 from app.models import ServiceReport, User, UserRole, FieldJob
 from app.schemas.service_report import ServiceReportRead
 
@@ -17,12 +17,13 @@ router = APIRouter(prefix="/service-reports", tags=["service-reports"])
 
 #TODO: Update upload service report when connect to AWS/S3Bucket
 @router.post("", response_model=ServiceReportRead)
-async def upload_diagnostic_report(
+async def upload_service_report(
     field_job_id: int = Form(...),
     file: UploadFile = File(...),
     note: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN, UserRole.FIELD_HAND))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN, UserRole.FIELD_HAND))
+    _: User = Depends(require_permission("service_report:create"))
 ) -> ServiceReportRead:
     field_job = await db.get(FieldJob, field_job_id)
     if field_job is None:
@@ -32,7 +33,7 @@ async def upload_diagnostic_report(
         )
 
     # Generate a unique S3 key for the uploaded file
-    s3_key = f"diagnostic_reports/{uuid.uuid4()}_{file.filename}"
+    s3_key = f"service_reports/{uuid.uuid4()}_{file.filename}"
 
     # Upload the file to S3
     try:
@@ -60,7 +61,8 @@ async def upload_diagnostic_report(
 @router.get("", response_model=list[ServiceReportRead])
 async def list_service_reports(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user)
+    # _: User = Depends(get_current_user)
+    _: User = Depends(require_permission("service_report:read"))
 ) -> list[ServiceReportRead]:
     statement = select(ServiceReport).order_by(ServiceReport.id)
     result = await db.execute(statement)
@@ -114,7 +116,8 @@ async def get_service_report_download_url(
 async def delete_service_report(
     service_report_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("service_report:delete"))
 ):
     service_report = await db.get(ServiceReport, service_report_id)
     if service_report is None:

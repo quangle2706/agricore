@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role
+from app.dependencies import get_db, get_current_user, require_role, require_permission
 from app.models import FieldJob, FieldJobPriority, FieldJobStatus, User, UserRole, Equipment, Operator
 from app.schemas.field_job import (
     DiscrepancyRead,
@@ -21,7 +21,8 @@ router = APIRouter(prefix="/field-jobs", tags=["field-jobs"])
 async def create_field_jobs(
     payload: FieldJobCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("field_job:create"))
 ) -> FieldJobRead:
     field_job = FieldJob(**payload.model_dump())
 
@@ -49,7 +50,8 @@ async def create_field_jobs(
 @router.get("", response_model=list[FieldJobRead])
 async def list_field_jobs(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user)
+    # _: User = Depends(get_current_user)
+    _: User = Depends(require_permission("field_job:read"))
 ) -> list[FieldJobRead]:
     statement = select(FieldJob).order_by(FieldJob.id)
     result = await db.execute(statement)
@@ -61,7 +63,8 @@ async def update_field_job(
     field_job_id: int,
     payload: FieldJobCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("field_job:update"))
 ) -> FieldJobRead:
     field_job = await db.get(FieldJob, field_job_id)
     if field_job is None:
@@ -96,7 +99,8 @@ async def update_field_job(
 async def delete_field_job(
     field_job_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("field_job:delete"))
 ):
     field_job = await db.get(FieldJob, field_job_id)
     if field_job is None:
@@ -113,7 +117,8 @@ async def update_field_job_status(
     field_job_id: int,
     payload: FieldJobStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN, UserRole.FIELD_HAND))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN, UserRole.FIELD_HAND))
+    _: User = Depends(require_permission("field_job:update_status"))
 ) -> FieldJobRead:
     field_job = await db.get(FieldJob, field_job_id)
     if field_job is None:

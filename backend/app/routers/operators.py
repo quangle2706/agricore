@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role
+from app.dependencies import get_db, get_current_user, require_role, require_permission
 from app.models import Operator, User, UserRole, Farm, FieldJob, FieldJobStatus
 from app.schemas.operator import OperatorCreate, OperatorRead, ActiveOperatorCountRead, ActiveOperatorRead
 
@@ -17,7 +17,8 @@ router = APIRouter(prefix="/operators", tags=["operators"])
 async def create_operator(
     payload: OperatorCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("operator:create"))
 ) -> OperatorRead:
     operator = Operator(**payload.model_dump())
     db.add(operator)
@@ -28,7 +29,8 @@ async def create_operator(
 @router.get("", response_model=list[OperatorRead])
 async def list_operators(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user)
+    # _: User = Depends(get_current_user)
+    _: User = Depends(require_permission("operator:read"))
 ) -> list[OperatorRead]:
     statement = select(Operator).order_by(Operator.id)
     result = await db.execute(statement)
@@ -40,7 +42,8 @@ async def update_operator(
     operator_id: int,
     payload: OperatorCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("operator:update"))
 ) -> OperatorRead:
     operator = await db.get(Operator, operator_id)
     if operator is None:
@@ -59,7 +62,8 @@ async def update_operator(
 async def delete_operator(
     operator_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("operator:delete"))
 ):
     operator = await db.get(Operator, operator_id)
     if operator is None:

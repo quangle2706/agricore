@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role
+from app.dependencies import get_db, get_current_user, require_role, require_permission
 from app.services.s3_service import s3_client
 from app.config import settings
 from app.models import User, UserRole
@@ -65,7 +65,8 @@ async def readiness_check(db: AsyncSession = Depends(get_db)):
 @router.get("/detail")
 async def detailed_health_check(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("health:read_detail"))
 ):
     database_ok, s3_ok = await asyncio.gather(
         check_database(db),

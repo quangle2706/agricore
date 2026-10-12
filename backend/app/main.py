@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, farms, equipments, field_jobs, operators, service_reports, health
+from app.routers import auth, farms, equipments, field_jobs, operators, service_reports, health, roles
 from app.config import settings
 
 FRONTEND_ORIGIN = settings.frontend_origin
@@ -37,6 +37,9 @@ app.include_router(service_reports.router)
 
 # health endpoints
 app.include_router(health.router)
+
+# role endpoints
+app.include_router(roles.router)
 
 
 @app.get("/version", tags=["health"])

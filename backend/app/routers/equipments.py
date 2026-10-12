@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role
+from app.dependencies import get_db, get_current_user, require_role, require_permission
 from app.models import Equipment, EquipmentStatus, User, UserRole
 from app.schemas.equipment import EquipmentCreate, EquipmentRead
 
@@ -17,7 +17,8 @@ router = APIRouter(prefix="/equipments", tags=["equipments"])
 async def create_equipment(
     payload: EquipmentCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("equipment:create"))
 ) -> EquipmentRead:
     equipment = Equipment(**payload.model_dump())
     db.add(equipment)
@@ -28,7 +29,8 @@ async def create_equipment(
 @router.get("", response_model=list[EquipmentRead])
 async def list_equipments(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user)
+    # _: User = Depends(get_current_user)
+    _: User = Depends(require_permission("equipment:read"))
 ) -> list[EquipmentRead]:
     statement = select(Equipment).order_by(Equipment.id)
     result = await db.execute(statement)
@@ -65,7 +67,8 @@ async def update_equipment(
     equipment_id: int,
     payload: EquipmentCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("equipment:update"))
 ) -> EquipmentRead:
     equipment = await db.get(Equipment, equipment_id)
     if equipment is None:
@@ -84,7 +87,8 @@ async def update_equipment(
 async def delete_equipment(
     equipment_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    _: User = Depends(require_permission("equipment:delete"))
 ):
     equipment = await db.get(Equipment, equipment_id)
     if equipment is None:
