@@ -11,7 +11,8 @@ import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
-import LogoutIcon from '@mui/icons-material/Logout'
+import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -34,7 +35,8 @@ export default function MenuContent({ isAdmin }) {
 
   const mainListItems = [
     ...listItems,
-    (isAdmin && { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' })
+    (isAdmin && { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' }),
+    (isAdmin && { text: 'Roles', icon: <AdminPanelSettingsIcon />, route: '/roles' })
   ]
 
   return (

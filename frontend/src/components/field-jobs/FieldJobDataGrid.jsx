@@ -7,6 +7,7 @@ import { Alert, Box, TextField, CircularProgress, Stack,
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import apiClient from "../../api/client";
+import usePermissions from "../../hooks/usePermissions";
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 70}, // default type is String
@@ -21,8 +22,14 @@ const PRIORITY_OPTIONS = ['Low', 'Medium', 'Critical'];
 const STATUS_OPTIONS = ['Pending', 'In-Progress', 'Completed', 'Failed'];
 
 function FieldJobDataGrid({ onSuccess, userRole }) {
-    const isAdmin = userRole === 'Farm Operations Admin';
-    const canUpdateStatus = isAdmin || userRole === 'Field Hand';
+    // const isAdmin = userRole === 'Farm Operations Admin';
+    // const canUpdateStatus = isAdmin || userRole === 'Field Hand';
+    const { hasPermission } = usePermissions();
+    const canCreateFieldJob = hasPermission("field_job:create");
+    const canUpdateFieldJob = hasPermission("field_job:update");
+    const canDeleteFieldJob = hasPermission("field_job:delete");
+    const canUpdateStatusFJ = hasPermission("field_job:update_status");
+    const canUpdate = canUpdateFieldJob || canUpdateStatusFJ;
 
     const [fieldJobs, setFieldJobs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -71,7 +78,7 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
     }
 
     const handleRowClick = ({ row }) => {
-        if (!isAdmin) return;
+        if (!canUpdateFieldJob) return;
 
         setSelectedFieldJob(row);
         setFormValues({
@@ -166,17 +173,17 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
 
     const gridColumns = [
         ...columns,
-        ...(canUpdateStatus ? [{
+        ...(canUpdate ? [{
             field: 'actions',
             headerName: 'Actions',
-            width: isAdmin ? 100 : 60,
+            width: canUpdate ? 100 : 60,
             sortable: false,
             filterable: false,
             align: 'center',
             headerAlign: 'center',
             renderCell: ({ row }) => (
                 <Stack direction="row" spacing={1} alignItems="center">
-                    <IconButton
+                    {canUpdateStatusFJ && (<IconButton
                         aria-label={`Update status for field job ${row.title}`}
                         title="Update status"
                         size="small"
@@ -186,8 +193,8 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                         }}
                     >
                         <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                    {isAdmin && (
+                    </IconButton>)}
+                    {canDeleteFieldJob && (
                         <IconButton
                             aria-label={`Delete field job ${row.title}`}
                             color="error"
@@ -232,7 +239,7 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                     }}
                 />
             </Box>
-            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>}
+            <Button disabled={loading || !canCreateFieldJob} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedFieldJob ? 'Edit Field Job' : 'Add New Field Job'}</DialogTitle>
                 <DialogContent>

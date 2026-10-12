@@ -6,6 +6,7 @@ import { Alert, Box, TextField, CircularProgress, Stack,
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
+import usePermissions from "../../hooks/usePermissions";
 
 function FuelLevelCell({ value }) {
     const fuelLevel = Math.min(Math.max(Number(value) || 0, 0), 100);
@@ -34,6 +35,11 @@ const STATUS_OPTIONS = ['Idle', 'In-Use', 'Maintenance', 'Retired'];
 
 function EquipmentDataGrid({ onSuccess, userRole }) {
     const isAdmin = userRole === 'Farm Operations Admin';
+    
+    const { hasPermission } = usePermissions();
+    const canCreateEquipment = hasPermission("equipment:create");
+    const canUpdateEquipment = hasPermission("equipment:update");
+    const canDeleteEquipment = hasPermission("equipment:delete");
 
     const [equipments, setEquipments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -80,7 +86,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
     }
 
     const handleRowClick = ({ row }) => {
-        if (!isAdmin) return;
+        if (!canUpdateEquipment) return;
 
         setSelectedEquipment(row);
         setFormValues({
@@ -157,7 +163,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
 
     const gridColumns = [
         ...columns,
-        (isAdmin && {
+        (canDeleteEquipment && {
             field: 'actions',
             headerName: 'Actions',
             width: 80,
@@ -208,7 +214,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                     }}
                 />
             </Box>
-            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>}
+            <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
                 <DialogContent>

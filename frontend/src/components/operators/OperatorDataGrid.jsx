@@ -5,6 +5,7 @@ import { Alert, Box, TextField, CircularProgress, Stack,
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
+import usePermissions from "../../hooks/usePermissions";
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 50}, // default type is String
@@ -13,7 +14,11 @@ const columns = [
 ];
 
 function OperatorDataGrid({ onSuccess, userRole }) {
-    const isAdmin = userRole === 'Farm Operations Admin';
+    // const isAdmin = userRole === 'Farm Operations Admin';
+    const { hasPermission } = usePermissions();
+    const canCreateOperator = hasPermission("operator:create");
+    const canUpdateOperator = hasPermission("operator:update");
+    const canDeleteOperator = hasPermission("operator:delete");
 
     const [operators, setOperators] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -57,7 +62,7 @@ function OperatorDataGrid({ onSuccess, userRole }) {
     }
 
     const handleRowClick = ({ row }) => {
-        if (!isAdmin) return;
+        if (!canUpdateOperator) return;
 
         setSelectedOperator(row);
         setFormValues({
@@ -125,7 +130,7 @@ function OperatorDataGrid({ onSuccess, userRole }) {
 
     const gridColumns = [
         ...columns,
-        (isAdmin && {
+        (canDeleteOperator && {
             field: 'actions',
             headerName: 'Actions',
             width: 80,
@@ -176,7 +181,7 @@ function OperatorDataGrid({ onSuccess, userRole }) {
                     }}
                 />
             </Box>
-            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Operator</Button>}
+            <Button disabled={loading || !canCreateOperator} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Operator</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedOperator ? 'Edit Operator' : 'Add New Operator'}</DialogTitle>
                 <DialogContent>

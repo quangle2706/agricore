@@ -6,6 +6,7 @@ import { Alert, Box, TextField, CircularProgress, Stack,
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
+import usePermissions from "../../hooks/usePermissions";
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 50}, // default type is String
@@ -16,7 +17,11 @@ const columns = [
 ];
 
 function FarmDataGrid({ onSuccess, userRole }) {
-    const isAdmin = userRole === 'Farm Operations Admin';
+    // const isAdmin = userRole === 'Farm Operations Admin';
+    const { hasPermission } = usePermissions();
+    const canCreateFarm = hasPermission("farm:create");
+    const canUpdateFarm = hasPermission("farm:update");
+    const canDeleteFarm = hasPermission("farm:delete");
 
     const [farms, setFarms] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -62,7 +67,7 @@ function FarmDataGrid({ onSuccess, userRole }) {
     }
 
     const handleRowClick = ({ row }) => {
-        if (!isAdmin) return;
+        if (!canUpdateFarm) return;
         
         setSelectedFarm(row);
         setFormValues({
@@ -135,7 +140,7 @@ function FarmDataGrid({ onSuccess, userRole }) {
 
     const gridColumns = [
         ...columns,
-        (isAdmin && {
+        (canDeleteFarm && {
             field: 'actions',
             headerName: 'Actions',
             width: 80,
@@ -186,7 +191,7 @@ function FarmDataGrid({ onSuccess, userRole }) {
                     }}
                 />
             </Box>
-            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Farm</Button>}
+            <Button disabled={loading || !canCreateFarm} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Farm</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedFarm ? 'Edit Farm' : 'Add New Farm'}</DialogTitle>
                 <DialogContent>

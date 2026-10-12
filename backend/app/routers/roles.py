@@ -6,7 +6,7 @@ from app.permissions import ROLE_PERMISSIONS
 
 class RoleRead(BaseModel):
     name: str
-    permission: list[str]
+    permissions: list[str]
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
@@ -17,5 +17,5 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
 )
 async def list_roles():
     return [
-        RoleRead(name=role_name, permission=sorted(permissions)) for role_name, permissions in ROLE_PERMISSIONS.items()
+        RoleRead(name=role_name, permissions=sorted(permissions)) for role_name, permissions in ROLE_PERMISSIONS.items()
     ]

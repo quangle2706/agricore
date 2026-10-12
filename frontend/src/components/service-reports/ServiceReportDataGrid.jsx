@@ -4,6 +4,7 @@ import { Alert, Box, TextField, CircularProgress,
     Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip
  } from "@mui/material";
 import apiClient from '../../api/client';
+import usePermissions from "../../hooks/usePermissions";
 
 function DownloadFileButton({ serviceReportId }) {
     const [loading, setLoading] = useState(false);
@@ -53,7 +54,9 @@ const columns = [
 
 
 function ServiceReportDataGrid({ onSuccess, userRole }) {
-    const canAddNew = userRole === 'Farm Operations Admin' || userRole === 'Field Hand';
+    // const canAddNew = userRole === 'Farm Operations Admin' || userRole === 'Field Hand';
+    const { hasPermission } = usePermissions();
+    const canCreateReport = hasPermission("service_report:create");
 
     const [serviceReports, setServiceReports] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -136,7 +139,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
                     }}
                 />
             </Box>
-            {canAddNew && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>}
+            <Button disabled={loading || !canCreateReport} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }} >Add New Service Report</DialogTitle>
                 <DialogContent>

@@ -9,6 +9,7 @@ import FieldJobs from './pages/FieldJobs';
 import Operators from './pages/Operators';
 import ServiceReports from './pages/ServiceReports';
 import Users from './pages/Users';
+import Roles from './pages/Roles';
 
 function AppContent() {
     const { isAuthenticated } = useAuth();
@@ -27,6 +28,7 @@ function AppContent() {
             <Route path='/operators' element={<Operators />} />
             <Route path='/service-reports' element={<ServiceReports />} />
             <Route path='/users' element={<Users />} />
+            <Route path='/roles' element={<Roles />} />
         </Route>
         <Route
             path='*'

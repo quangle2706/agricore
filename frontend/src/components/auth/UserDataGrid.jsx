@@ -6,6 +6,7 @@ import { Alert, Box, TextField, CircularProgress, Stack,
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import apiClient from "../../api/client";
+import usePermissions from "../../hooks/usePermissions";
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 70}, // default type is String
@@ -16,7 +17,11 @@ const columns = [
 const ROLE_OPTIONS = ['Farm Operations Admin', 'Field Hand', 'Auditor'];
 
 function UserDataGrid({ onSuccess, userRole }) {
-    const isAdmin = userRole === 'Farm Operations Admin';
+    // const isAdmin = userRole === 'Farm Operations Admin';
+    const { hasPermission } = usePermissions();
+    const canCreateUser = hasPermission("user:create");
+    const canUpdateUser = hasPermission("user:update");
+    const canDeleteUser = hasPermission("user:delete");
 
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -64,6 +69,8 @@ function UserDataGrid({ onSuccess, userRole }) {
     }
 
     const handleRowClick = ({ row }) => {
+        if (!canUpdateUser) return;
+
         setSelectedUser(row);
         setFormValues({
             username: row.username,
@@ -149,7 +156,7 @@ function UserDataGrid({ onSuccess, userRole }) {
 
     const gridColumns = [
         ...columns,
-        (isAdmin && {
+        (canDeleteUser && {
             field: 'actions',
             headerName: 'Actions',
             width: 80,
@@ -200,7 +207,7 @@ function UserDataGrid({ onSuccess, userRole }) {
                     }}
                 />
             </Box>
-            {isAdmin && <Button variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add User</Button>}
+            <Button disabled={loading || !canCreateUser} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add User</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
                 <DialogContent>

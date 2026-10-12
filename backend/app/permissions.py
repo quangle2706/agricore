@@ -34,7 +34,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
         "role:read",
         "health:read_detail"
     }),
-    "Field Technician": frozenset({
+    "Field Hand": frozenset({
         "farm:read",
         "equipment:read",
         "operator:read",

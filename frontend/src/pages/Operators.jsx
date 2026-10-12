@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import OperatorDataGrid from "../components/operators/OperatorDataGrid";
 import { useState } from "react";
 
-// TODO: add SideMenu
 import SideMenu from "../components/menu/SideMenu";
 
 function Operators() {
