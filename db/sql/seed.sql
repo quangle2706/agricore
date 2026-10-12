@@ -76,3 +76,17 @@ SELECT setval('equipments_id_seq', (SELECT MAX(id) FROM equipments));
 SELECT setval('operators_id_seq', (SELECT MAX(id) FROM operators));
 SELECT setval('field_jobs_id_seq', (SELECT MAX(id) FROM field_jobs));
 SELECT setval('service_reports_id_seq', (SELECT MAX(id) FROM service_reports));
+
+-- Create indexes for better filtering and sorting on frequently queried columns
+CREATE INDEX IF NOT EXISTS ix_equipments_farm_id
+ON equipments (farm_id);
+
+CREATE INDEX IF NOT EXISTS ix_field_jobs_equipment_id
+ON field_jobs (equipment_id);
+
+CREATE INDEX IF NOT EXISTS ix_field_jobs_operator_id
+ON field_jobs (operator_id);
+
+CREATE INDEX IF NOT EXISTS ix_service_reports_field_job_id
+ON service_reports (field_job_id);
+

@@ -34,16 +34,91 @@ const columns = [
 const STATUS_OPTIONS = ['Idle', 'In-Use', 'Maintenance', 'Retired'];
 
 function EquipmentDataGrid({ onSuccess, userRole }) {
-    const isAdmin = userRole === 'Farm Operations Admin';
+    // const isAdmin = userRole === 'Farm Operations Admin';
     
     const { hasPermission } = usePermissions();
     const canCreateEquipment = hasPermission("equipment:create");
     const canUpdateEquipment = hasPermission("equipment:update");
     const canDeleteEquipment = hasPermission("equipment:delete");
 
-    const [equipments, setEquipments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // pagination
+    const [rows, setRows] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [reload, setReload] = useState(0);
+    const [searchInput, setSearchInput] = useState("");
+    const [query, setQuery] = useState({
+        page: 0,
+        pageSize: 10,
+        search: "",
+        status: "",
+        farmId: "",
+        sortModel: [{ field: "id", sort: "asc" }],
+    });
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setQuery(
+                (previous) => previous.search === searchInput 
+                ? previous : {...previous, search: searchInput, page: 0});
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        const controller = new AbortController(); // to cancel the request if the component unmounts
+        let active = true;
+
+        async function load() {
+            setLoading(true);
+            setError("");
+
+            const sort = query.sortModel[0];
+            try {
+                const response = await apiClient.get("/equipments", {
+                    signal: controller.signal,
+                    params: {
+                        page: query.page + 1,
+                        size: query.pageSize,
+                        search: query.search.trim() || undefined,
+                        status: query.status || undefined,
+                        farm_id: query.farmId || undefined,
+                        sort_by: sort?.field ?? "id",
+                        sort_dir: sort?.sort ?? "asc",
+                    },
+                });
+
+                if (!active) return;
+                setRows(response.data.items);
+                setTotal(response.data.total);
+            } catch (err) {
+                if (!active || controller.signal.aborted) return;
+                setRows([]);
+                setError("Unable to load equipments");
+            } finally {
+                if (active) setLoading(false);
+            }
+        }
+
+        load();
+        return () => {
+            active = false;
+            controller.abort();
+        }
+    }, [query, reload]);
+
+    function updateFilter(field, value) {
+        setQuery((previous) => ({
+            ...previous,
+            [field]: value,
+            page: 0,
+        }));
+    }
+
+    // -----------
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -54,23 +129,6 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
         fuel_level: '',
         farm_id: '',
     });
-
-    async function fetchEquipments() {
-        setLoading(true);
-        try {
-            const response = await apiClient.get('/equipments');
-            setEquipments(response.data);
-            setError(null);
-        } catch {
-            setError('Could not load data');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        fetchEquipments();
-    }, []);
 
     if (loading) return <CircularProgress />
     if (error) return <Alert severity="error">{error}</Alert>
@@ -114,7 +172,8 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                 fuel_level: '',
                 farm_id: ''
             });
-            await fetchEquipments(); 
+            // await fetchEquipments(); 
+            setReload((previous) => previous + 1);
             onSuccess?.(`Equipment ${formValues.serial_number} created.`);
         } catch {
             setError('Could not create equipment');
@@ -130,31 +189,28 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
             });
             setDialogOpen(false);
             setSelectedEquipment(null);
-            await fetchEquipments();
+            // await fetchEquipments();
+            setReload((previous) => previous + 1);
             onSuccess?.(`Equipment ${formValues.serial_number} updated.`);
         } catch {
             setError('Could not update equipment');
         }
     };
 
-    // const handleDelete = async () => {
-    //     if (!window.confirm(`Delete equipment ${selectedEquipment.serial_number}?`)) return;
-    //     try {
-    //         await apiClient.delete(`/equipments/${selectedEquipment.id}`);
-    //         setDialogOpen(false);
-    //         setSelectedEquipment(null);
-    //         await fetchEquipments();
-    //         onSuccess?.(`Equipment ${selectedEquipment.serial_number} deleted.`);
-    //     } catch {
-    //         setError('Could not delete equipment');
-    //     }
-    // };
-
     const handleDeleteRow = async (equipment) => {
         if (!window.confirm(`Delete equipment ${equipment.name}?`)) return;
         try {
             await apiClient.delete(`/equipments/${equipment.id}`);
-            await fetchEquipments();
+
+            if (rows.length === 1 && query.page > 0) {
+                setQuery((previous) => ({
+                    ...previous,
+                    page: previous.page - 1,
+                }));
+            } else {
+                setReload((previous) => previous + 1);
+            }
+
             onSuccess?.(`Equipment ${equipment.serial_number} deleted.`);
         } catch {
             setError('Could not delete equipment');
@@ -189,55 +245,99 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
 
     return (
         <>
-            <Box sx={{ height: 400, width: '100%' }}>
-                <DataGrid
-                    loading={loading}
-                    rows={equipments}
-                    columns={gridColumns}
-                    getRowId={(row) => row.id}
-                    onRowClick={handleRowClick}
-                    rowHeight={44}
-                    columnHeaderHeight={45}
-                    sx={{
-                        '& .MuiDataGrid-cell': {
-                            fontSize: '0.8rem',
-                            alignItems: 'center',
-                        },
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                        },
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: '#f4f6f8',
-                            borderBottom: '2px solid #d7dce2',
-                        },
-                    }}
-                />
-            </Box>
-            <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-                <DialogTitle sx={{ textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
-                        <TextField label="Serial Number" value={formValues.serial_number} onChange={handleFieldChange('serial_number')} />
-                        <TextField label="Model" value={formValues.model} onChange={handleFieldChange('model')} />
-                        <TextField select label="Status" value={formValues.status} onChange={handleFieldChange('status')}>
+            <Stack spacing={2}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField 
+                        label="Search serial or model" 
+                        value={searchInput} 
+                        onChange={(event) => setSearchInput(event.target.value)}
+                        size="small" fullWidth
+                        />    
+                    <TextField 
+                        select
+                        label="Status"
+                        value={query.status}
+                        onChange={(event) => updateFilter("status", event.target.value)}
+                        size="small"
+                        sx={{ minWidth: 170 }}>
                             {STATUS_OPTIONS.map((option) => (
                                 <MenuItem key={option} value={option}>{option}</MenuItem>
                             ))}
-                        </TextField>
-                        <TextField label="Fuel Level" type="number" value={formValues.fuel_level} onChange={handleFieldChange('fuel_level')} />
-                        <TextField label="Farm ID" type="number" value={formValues.farm_id} onChange={handleFieldChange('farm_id')} />
-                    </Stack>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-                    {/* {selectedEquipment && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
-                    <Button variant="contained" onClick={selectedEquipment ? handleUpdate : handleCreate}>
-                        {selectedEquipment ? 'Save changes' : 'Create'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                    </TextField>
+                    <TextField
+                        label="Farm ID"
+                        type="number"
+                        value={query.farmId}
+                        onChange={(event) =>
+                            updateFilter("farmId", event.target.value)
+                        }
+                        slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                        size="small"
+                        sx={{ minWidth: 120 }}
+                        />
+                </Stack>
+                {error && (
+                    <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
+                )}
+                <Box sx={{ height: 400, width: '100%' }}>
+                    <DataGrid 
+                        rows={rows}
+                        columns={gridColumns}
+                        rowCount={total}
+                        loading={loading}
+                        pagination
+                        paginationMode="server"
+                        sortingMode="server"
+                        filterMode="server"
+                        disableColumnFilter
+                        pageSizeOptions={[10, 25, 50, 100]}
+                        paginationModel={{
+                            page: query.page,
+                            pageSize: query.pageSize,
+                        }}
+                        onPaginationModelChange={(model) => 
+                            setQuery((previous) => ({
+                                ...previous,
+                                page: model.pageSize !== previous.pageSize ? 0 : model.page,
+                                pageSize: model.pageSize,
+                            }))
+                        }
+                        sortModel={query.sortModel}
+                        onSortModelChange={(sortModel) => 
+                            setQuery((previous) => ({
+                                ...previous,
+                                sortModel,
+                                page: 0,
+                            }))
+                        }
+                        onRowClick={handleRowClick}
+                    />
+                </Box>
+                <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
+                <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+                    <DialogTitle sx={{ textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
+                    <DialogContent>
+                        <Stack spacing={2} sx={{ mt: 1, minWidth: 300 }}>
+                            <TextField label="Serial Number" value={formValues.serial_number} onChange={handleFieldChange('serial_number')} />
+                            <TextField label="Model" value={formValues.model} onChange={handleFieldChange('model')} />
+                            <TextField select label="Status" value={formValues.status} onChange={handleFieldChange('status')}>
+                                {STATUS_OPTIONS.map((option) => (
+                                    <MenuItem key={option} value={option}>{option}</MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField label="Fuel Level" type="number" value={formValues.fuel_level} onChange={handleFieldChange('fuel_level')} />
+                            <TextField label="Farm ID" type="number" value={formValues.farm_id} onChange={handleFieldChange('farm_id')} />
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+                        {/* {selectedEquipment && <Button color="error" onClick={handleDelete}>Delete</Button>} */}
+                        <Button variant="contained" onClick={selectedEquipment ? handleUpdate : handleCreate}>
+                            {selectedEquipment ? 'Save changes' : 'Create'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            </Stack>
         </>
     )
 }

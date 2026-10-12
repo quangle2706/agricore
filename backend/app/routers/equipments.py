@@ -2,16 +2,101 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from sqlalchemy import select, func, Float
+from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role, require_permission
+from app.dependencies import get_db, get_current_user, require_role, require_permission, PaginationParams
 from app.models import Equipment, EquipmentStatus, User, UserRole
 from app.schemas.equipment import EquipmentCreate, EquipmentRead
+from app.schemas.pagination import Page
 
 from decimal import Decimal
 
 router = APIRouter(prefix="/equipments", tags=["equipments"])
+
+SORT_COLUMNS = {
+    "id": Equipment.id,
+    "serial_number": Equipment.serial_number,
+    "model": Equipment.model,
+    "status": Equipment.status,
+    "fuel_level": Equipment.fuel_level,
+    "farm_id": Equipment.farm_id,
+}
+
+async def query_equipment_page(
+    db: AsyncSession,
+    *,
+    page: int, size: int, sort_by: str, sort_dir: str,
+    search: str | None = None,
+    status=None,
+    farm_id: int | None = None,
+):
+    sort_column = SORT_COLUMNS.get(sort_by)
+    if sort_column is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported sort field: {sort_by}",
+        )
+    
+    conditions = []
+
+    if search and search.strip():
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        pattern = f"%{term}%"
+        conditions.append(
+            or_(Equipment.serial_number.ilike(pattern, escape="\\"),
+                Equipment.model.ilike(pattern, escape="\\"),)
+        )
+
+    if status is not None:
+        conditions.append(Equipment.status == status)
+    if farm_id is not None:
+        conditions.append(Equipment.farm_id == farm_id)
+
+    count_stmt = (
+        select(func.count()).select_from(Equipment).where(*conditions)
+    )
+    ordering = (sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    rows_stmt = (select(Equipment).where(*conditions).order_by(ordering))
+
+    # if sort_by by other columns may have same value => then sort_by id asc for those
+    if sort_by != "id":
+        rows_stmt = rows_stmt.order_by(Equipment.id.asc())
+
+    rows_stmt = (rows_stmt.offset((page - 1) * size).limit(size))
+
+    total = (await db.execute(count_stmt)).scalar_one()
+    items = (await db.execute(rows_stmt)).scalars().all()
+
+    return { "items": items, "total": total }
+
+    
+
+@router.get("", response_model=Page[EquipmentRead])
+async def list_equipments(
+    pagination: PaginationParams = Depends(),
+    search: str | None = Query(default=None, max_length=100),
+    status: EquipmentStatus | None = Query(default=None),
+    farm_id: int | None = Query(default=None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("equipment:read"))
+):
+    return await query_equipment_page(
+        db, 
+        page=pagination.page,
+        size=pagination.size,
+        sort_by=pagination.sort_by,
+        sort_dir=pagination.sort_dir,
+        search=search,
+        status=status,
+        farm_id=farm_id,
+    )
+
 
 @router.post("", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
 async def create_equipment(
@@ -26,16 +111,18 @@ async def create_equipment(
     await db.refresh(equipment)
     return equipment
 
-@router.get("", response_model=list[EquipmentRead])
-async def list_equipments(
-    db: AsyncSession = Depends(get_db),
-    # _: User = Depends(get_current_user)
-    _: User = Depends(require_permission("equipment:read"))
-) -> list[EquipmentRead]:
-    statement = select(Equipment).order_by(Equipment.id)
-    result = await db.execute(statement)
-    equipments = result.scalars().all()
-    return equipments
+
+# @router.get("", response_model=list[EquipmentRead])
+# async def list_equipments(
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(get_current_user)
+#     _: User = Depends(require_permission("equipment:read"))
+# ) -> list[EquipmentRead]:
+#     statement = select(Equipment).order_by(Equipment.id)
+#     result = await db.execute(statement)
+#     equipments = result.scalars().all()
+#     return equipments
+
 
 #Business Question 1: Active equipment units are opertating below a 20% fuel level across all farms?
 @router.get("/active", response_model=list[EquipmentRead])

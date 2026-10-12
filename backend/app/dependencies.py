@@ -13,6 +13,10 @@ from app.models import User, UserRole
 from app.security import decode_access_token
 from app.permissions import get_role_permissions
 
+##pagination
+from typing import Literal
+from fastapi import Query
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
@@ -54,6 +58,7 @@ def require_role(*allowed_roles: UserRole):
         return current_user
     return role_checker
 
+# check permission
 def require_permission(required_permission: str):
     async def checker(
         current_user: User = Depends(get_current_user),
@@ -66,3 +71,17 @@ def require_permission(required_permission: str):
             )
         return current_user
     return checker
+
+# define pagination params
+class PaginationParams:
+    def __init__(
+        self,
+        page: int = Query(default=1, ge=1), #check param if valid >= 1
+        size: int = Query(default=10, ge=1, le=100), # size should be 1 <= x <= 100
+        sort_by: str = Query(default="id"), 
+        sort_dir: Literal["asc", "desc"] = Query(default="asc"), # only "asc" or "desc"
+    ):
+        self.page = page
+        self.size = size
+        self.sort_by = sort_by
+        self.sort_dir = sort_dir
