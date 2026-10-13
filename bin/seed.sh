@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# bash bin/seed.sh
 # Seed the configured database: schema, business data, then demo users.
 set -euo pipefail
 

@@ -6,6 +6,7 @@ from sqlalchemy import Integer, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixin import SoftDeleteMixin
 
 #let us import Farm for type hints without importing it at runtime
 # -> prevent a circular import if farm.py also refer to Operator
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from .farm import Farm
     from .field_job import FieldJob
 
-class Operator(Base):
+class Operator(SoftDeleteMixin, Base):
     __tablename__ = "operators"
 
     id: Mapped[int] = mapped_column(primary_key=True)

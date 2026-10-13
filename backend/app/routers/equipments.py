@@ -1,6 +1,6 @@
 #Define Equipment API endpoints
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 
 from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,17 @@ from app.dependencies import get_db, get_current_user, require_role, require_per
 from app.models import Equipment, EquipmentStatus, User, UserRole
 from app.schemas.equipment import EquipmentCreate, EquipmentRead
 from app.schemas.pagination import Page
+
+from app.services.record_service import (
+    soft_delete_record,
+    restore_record,
+    create_record,
+    update_record,
+    get_record,
+)
+
+from app.schemas.audit import AuditRead
+from app.services.audit_service import add_audit, read_history
 
 from decimal import Decimal
 
@@ -37,8 +48,11 @@ async def query_equipment_page(
             status_code=422,
             detail=f"Unsupported sort field: {sort_by}",
         )
-    
-    conditions = []
+
+    # after has deleted_at for soft delete
+    conditions = [
+        Equipment.deleted_at.is_(None),
+    ]
 
     if search and search.strip():
         term = (
@@ -97,19 +111,40 @@ async def list_equipments(
         farm_id=farm_id,
     )
 
+# inactive list
+@router.get("/inactive", response_model=list[EquipmentRead])
+async def inactive_equipments(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+):
+    statement = (
+        select(Equipment)
+        .where(Equipment.deleted_at.is_not(None))
+        .order_by(
+            Equipment.deleted_at.desc(),
+            Equipment.id.desc(),
+        )
+    )
+
+    return (await db.scalars(statement)).all()
+
 
 @router.post("", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
 async def create_equipment(
     payload: EquipmentCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("equipment:create"))
 ) -> EquipmentRead:
-    equipment = Equipment(**payload.model_dump())
-    db.add(equipment)
-    await db.commit()
-    await db.refresh(equipment)
-    return equipment
+    
+    return await create_record(db, "equipment", payload, current_user)
+    
+    # equipment = Equipment(**payload.model_dump())
+    # db.add(equipment)
+    # await db.commit()
+    # await db.refresh(equipment)
+    # return equipment
 
 
 # @router.get("", response_model=list[EquipmentRead])
@@ -154,34 +189,77 @@ async def update_equipment(
     equipment_id: int,
     payload: EquipmentCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("equipment:update"))
 ) -> EquipmentRead:
-    equipment = await db.get(Equipment, equipment_id)
-    if equipment is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Equipment {equipment_id} not found"
-        )
-    for key, value in payload.model_dump().items():
-        setattr(equipment, key, value)
 
-    await db.commit()
-    await db.refresh(equipment)
-    return equipment
+    return await update_record(db, "equipment", equipment_id, payload, current_user)
+    
+    # equipment = await db.get(Equipment, equipment_id)
+    # if equipment is None:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail=f"Equipment {equipment_id} not found"
+    #     )
+    # for key, value in payload.model_dump().items():
+    #     setattr(equipment, key, value)
+
+    # await db.commit()
+    # await db.refresh(equipment)
+    # return equipment
+
+# @router.delete("/{equipment_id}", status_code=status.HTTP_204_NO_CONTENT)
+# async def delete_equipment(
+#     equipment_id: int,
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+#     _: User = Depends(require_permission("equipment:delete"))
+# ):
+#     equipment = await db.get(Equipment, equipment_id)
+#     if equipment is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail=f"Equipment {equipment_id} not found"
+#         )
+#     await db.delete(equipment)
+#     await db.commit()
 
 @router.delete("/{equipment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_equipment(
     equipment_id: int,
     db: AsyncSession = Depends(get_db),
-    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     _: User = Depends(require_permission("equipment:delete"))
 ):
-    equipment = await db.get(Equipment, equipment_id)
-    if equipment is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Equipment {equipment_id} not found"
-        )
-    await db.delete(equipment)
-    await db.commit()
+    await soft_delete_record(db, "equipment", equipment_id, admin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.post("/{equipment_id}/restore", response_model=EquipmentRead)
+async def restore_equipment(
+    equipment_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+):
+    return await restore_record(db, "equipment", equipment_id, admin)
+
+# read history
+@router.get(
+    "/{equipment_id}/history",
+    response_model=list[AuditRead]
+)
+async def equipment_history(
+    equipment_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    # assumes every authenticated user can read equipment
+    record = await get_record(db, "equipment", equipment_id, include_deleted=True,)
+
+    role = getattr(user.role, "value", user.role) # to handle enum and string representation of role
+
+    if (record.deleted_at is not None and role != UserRole.FARM_OPERATIONS_ADMIN):
+        raise HTTPException(404, "Record not found")
+
+    return await read_history(db, "equipment", equipment_id)
+    

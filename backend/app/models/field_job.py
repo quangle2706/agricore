@@ -8,13 +8,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .enums import FieldJobPriority, FieldJobStatus
+from .mixin import SoftDeleteMixin
 
 if TYPE_CHECKING:
     from .equipment import Equipment
     from .operator import Operator
     from .service_report import ServiceReport
 
-class FieldJob(Base):
+class FieldJob(SoftDeleteMixin, Base):
     __tablename__ = "field_jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
