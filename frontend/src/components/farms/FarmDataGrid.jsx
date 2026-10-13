@@ -23,9 +23,83 @@ function FarmDataGrid({ onSuccess, userRole }) {
     const canUpdateFarm = hasPermission("farm:update");
     const canDeleteFarm = hasPermission("farm:delete");
 
-    const [farms, setFarms] = useState([]);
+    // const [farms, setFarms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // pagination
+    const [rows, setRows] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [reload, setReload] = useState(0);
+    const [searchInput, setSearchInput] = useState("");
+    const [query, setQuery] = useState({
+        page: 0,
+        pageSize: 10,
+        search: "",
+        supervisorId: "",
+        sortModel: [{ field: "id", sort: "asc" }],
+    });
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setQuery(
+                (previous) => previous.search === searchInput 
+                ? previous : {...previous, search: searchInput, page: 0});
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        const controller = new AbortController(); // to cancel the request if the component unmounts
+        let active = true;
+
+        async function load() {
+            setLoading(true);
+            setError("");
+
+            const sort = query.sortModel[0];
+            try {
+                const response = await apiClient.get("/farms", {
+                    signal: controller.signal,
+                    params: {
+                        page: query.page + 1,
+                        size: query.pageSize,
+                        search: query.search.trim() || undefined,
+                        supervisor_id: query.supervisorId || undefined,
+                        sort_by: sort?.field ?? "id",
+                        sort_dir: sort?.sort ?? "asc",
+                    },
+                });
+
+                if (!active) return;
+                setRows(response.data.items);
+                setTotal(response.data.total);
+            } catch (err) {
+                if (!active || controller.signal.aborted) return;
+                setRows([]);
+                setError("Unable to load farms");
+            } finally {
+                if (active) setLoading(false);
+            }
+        }
+
+        load();
+        return () => {
+            active = false;
+            controller.abort();
+        }
+    }, [query, reload]);
+
+    function updateFilter(field, value) {
+        setQuery((previous) => ({
+            ...previous,
+            [field]: value,
+            page: 0,
+        }));
+    }
+
+    // -------------
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedFarm, setSelectedFarm] = useState(null);
@@ -35,23 +109,6 @@ function FarmDataGrid({ onSuccess, userRole }) {
         capacity: '',
         supervisor_id: '',
     });
-
-    async function fetchFarms() {
-        setLoading(true);
-        try {
-            const response = await apiClient.get('/farms');
-            setFarms(response.data);
-            setError(null);
-        } catch {
-            setError('Could not load data');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        fetchFarms();
-    }, []);
 
     if (loading) return <CircularProgress />
     if (error) return <Alert severity="error">{error}</Alert>
@@ -91,7 +148,8 @@ function FarmDataGrid({ onSuccess, userRole }) {
                 capacity: '',
                 supervisor_id: '',
             });
-            await fetchFarms(); 
+            // await fetchFarms(); 
+            setReload((previous) => previous + 1);
             onSuccess?.(`Farm ${formValues.name} created.`);
         } catch {
             setError('Could not create farm');
@@ -107,31 +165,29 @@ function FarmDataGrid({ onSuccess, userRole }) {
             });
             setDialogOpen(false);
             setSelectedFarm(null);
-            await fetchFarms();
+            // await fetchFarms();
+            setReload((previous) => previous + 1);
             onSuccess?.(`Farm ${formValues.name} updated.`);
         } catch {
             setError('Could not update farm');
         }
     };
 
-    // const handleDelete = async () => {
-    //     if (!window.confirm(`Delete farm ${selectedFarm.name}?`)) return;
-    //     try {
-    //         await apiClient.delete(`/farms/${selectedFarm.id}`);
-    //         setDialogOpen(false);
-    //         setSelectedFarm(null);
-    //         await fetchFarms();
-    //         onSuccess?.(`Farm ${selectedFarm.name} deleted.`);
-    //     } catch {
-    //         setError('Could not delete farm');
-    //     }
-    // };
-
     const handleDeleteRow = async (farm) => {
         if (!window.confirm(`Delete farm ${farm.name}?`)) return;
         try {
             await apiClient.delete(`/farms/${farm.id}`);
-            await fetchFarms();
+
+            // await fetchFarms();
+            if (rows.length === 1 && query.page > 0) {
+                setQuery((previous) => ({
+                    ...previous,
+                    page: previous.page - 1,
+                }));
+            } else {
+                setReload((previous) => previous + 1);
+            }
+            
             onSuccess?.(`Farm ${farm.name} deleted.`);
         } catch {
             setError('Could not delete farm');
@@ -165,30 +221,61 @@ function FarmDataGrid({ onSuccess, userRole }) {
     ];
 
     return (
-        <>
+        <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TextField 
+                    label="Search name or location region" 
+                    value={searchInput} 
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    size="small" fullWidth
+                    />    
+                <TextField
+                    label="Supervisor ID"
+                    type="text"
+                    value={query.supervisorId}
+                    onChange={(event) =>
+                        updateFilter("supervisorId", event.target.value)
+                    }
+                    slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                    size="small"
+                    sx={{ minWidth: 120 }}
+                    />
+            </Stack>
+            {error && (
+                <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
+            )}
             <Box sx={{ height: 400, width: '100%' }}>
-                <DataGrid
-                    loading={loading}
-                    rows={farms}
+                <DataGrid 
+                    rows={rows}
                     columns={gridColumns}
-                    getRowId={(row) => row.id}
-                    onRowClick={handleRowClick}
-                    rowHeight={44}
-                    columnHeaderHeight={45}
-                    sx={{
-                        '& .MuiDataGrid-cell': {
-                            fontSize: '0.8rem',
-                            alignItems: 'center',
-                        },
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                        },
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: '#f4f6f8',
-                            borderBottom: '2px solid #d7dce2',
-                        },
+                    rowCount={total}
+                    loading={loading}
+                    pagination
+                    paginationMode="server"
+                    sortingMode="server"
+                    filterMode="server"
+                    disableColumnFilter
+                    pageSizeOptions={[10, 25, 50, 100]}
+                    paginationModel={{
+                        page: query.page,
+                        pageSize: query.pageSize,
                     }}
+                    onPaginationModelChange={(model) => 
+                        setQuery((previous) => ({
+                            ...previous,
+                            page: model.pageSize !== previous.pageSize ? 0 : model.page,
+                            pageSize: model.pageSize,
+                        }))
+                    }
+                    sortModel={query.sortModel}
+                    onSortModelChange={(sortModel) => 
+                        setQuery((previous) => ({
+                            ...previous,
+                            sortModel,
+                            page: 0,
+                        }))
+                    }
+                    onRowClick={handleRowClick}
                 />
             </Box>
             <Button disabled={loading || !canCreateFarm} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Farm</Button>
@@ -210,7 +297,7 @@ function FarmDataGrid({ onSuccess, userRole }) {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </>
+        </Stack>
     )
 }
 

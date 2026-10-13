@@ -1,11 +1,11 @@
 #Define Auth APIs and CRUD API for User
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, require_role, require_permission, get_current_user
+from app.dependencies import get_db, require_role, require_permission, get_current_user, PaginationParams
 from app.models import User, UserRole
 from app.schemas.user import Token, UserCreate, UserRead, UserUpdate, CurrentUserRead
 from app.security import create_access_token, hash_password, verify_password
@@ -16,7 +16,82 @@ from app.schemas.token import TokenPair, RefreshTokenRequest
 from app.services.refresh_tokens import add_refresh_token, get_locked_token, revoke_chain, unauthorized, validate_refresh_token
 from app.permissions import get_role_name, get_role_permissions
 
+from app.schemas.pagination import Page
+
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+SORT_COLUMNS = {
+    "id": User.id,
+    "username": User.username,
+    "role": User.role,
+}
+
+async def query_user_page(
+    db: AsyncSession,
+    *,
+    page: int, size: int, sort_by: str, sort_dir: str,
+    search: str | None = None,
+    role=None,
+):
+    sort_column = SORT_COLUMNS.get(sort_by)
+    if sort_column is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported sort field: {sort_by}",
+        )
+    
+    conditions = []
+
+    if search and search.strip():
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        pattern = f"%{term}%"
+        conditions.append(
+            or_(User.username.ilike(pattern, escape="\\"),)
+        )
+
+    if role is not None:
+        conditions.append(User.role == role)
+
+    count_stmt = (
+        select(func.count()).select_from(User).where(*conditions)
+    )
+    ordering = (sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    rows_stmt = (select(User).where(*conditions).order_by(ordering))
+
+    # if sort_by by other columns may have same value => then sort_by id asc for those
+    if sort_by != "id":
+        rows_stmt = rows_stmt.order_by(User.id.asc())
+
+    rows_stmt = (rows_stmt.offset((page - 1) * size).limit(size))
+
+    total = (await db.execute(count_stmt)).scalar_one()
+    items = (await db.execute(rows_stmt)).scalars().all()
+
+    return { "items": items, "total": total }
+
+@router.get("/users", response_model=Page[UserRead])
+async def list_users(
+    pagination: PaginationParams = Depends(),
+    search: str | None = Query(default=None, max_length=100),
+    role: UserRole | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("user:read"))
+):
+    return await query_user_page(
+        db, 
+        page=pagination.page,
+        size=pagination.size,
+        sort_by=pagination.sort_by,
+        sort_dir=pagination.sort_dir,
+        search=search,
+        role=role,
+    )
+
 
 # @router.post("/token", response_model=Token)
 # async def login(
@@ -166,16 +241,16 @@ async def logout(
 #-----------------------
 
 #CRUD Operators
-@router.get("/users", response_model=list[UserRead])
-async def list_users(
-    db: AsyncSession = Depends(get_db),
-    # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
-    _: User = Depends(require_permission("user:read"))
-) -> list[UserRead]:
-    statement = select(User)
-    result = await db.execute(statement)
-    users = result.scalars().all()
-    return users
+# @router.get("/users", response_model=list[UserRead])
+# async def list_users(
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+#     _: User = Depends(require_permission("user:read"))
+# ) -> list[UserRead]:
+#     statement = select(User)
+#     result = await db.execute(statement)
+#     users = result.scalars().all()
+#     return users
 
 @router.patch("/users/{user_id}", response_model=UserRead)
 async def update_user(

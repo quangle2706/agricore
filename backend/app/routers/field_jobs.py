@@ -2,10 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from sqlalchemy import select, func, Float
+from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role, require_permission
+from app.dependencies import get_db, get_current_user, require_role, require_permission, PaginationParams
 from app.models import FieldJob, FieldJobPriority, FieldJobStatus, User, UserRole, Equipment, Operator
 from app.schemas.field_job import (
     DiscrepancyRead,
@@ -14,8 +14,104 @@ from app.schemas.field_job import (
     FieldJobRead,
     FieldJobStatusUpdate,
 )
+from app.schemas.pagination import Page
 
 router = APIRouter(prefix="/field-jobs", tags=["field-jobs"])
+
+SORT_COLUMNS = {
+    "id": FieldJob.id,
+    "title": FieldJob.title,
+    "priority": FieldJob.priority,
+    "status": FieldJob.status,
+    "equipment_id": FieldJob.equipment_id,
+    "operator_id": FieldJob.operator_id,
+}
+
+async def query_field_job_page(
+    db: AsyncSession,
+    *,
+    page: int, size: int, sort_by: str, sort_dir: str,
+    search: str | None = None,
+    priority=None,
+    status=None,
+    equipment_id: int | None = None,
+    operator_id: int | None = None,
+):
+    sort_column = SORT_COLUMNS.get(sort_by)
+    if sort_column is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported sort field: {sort_by}",
+        )
+    
+    conditions = []
+
+    if search and search.strip():
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        pattern = f"%{term}%"
+        conditions.append(
+            or_(FieldJob.title.ilike(pattern, escape="\\"),)
+        )
+
+    if priority is not None:
+        conditions.append(FieldJob.priority == priority)
+    if status is not None:
+        conditions.append(FieldJob.status == status)
+    if equipment_id is not None:
+        conditions.append(FieldJob.equipment_id == equipment_id)
+    if operator_id is not None:
+        conditions.append(FieldJob.operator_id == operator_id)
+
+    count_stmt = (
+        select(func.count()).select_from(FieldJob).where(*conditions)
+    )
+    ordering = (sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    rows_stmt = (select(FieldJob).where(*conditions).order_by(ordering))
+
+    # if sort_by by other columns may have same value => then sort_by id asc for those
+    if sort_by != "id":
+        rows_stmt = rows_stmt.order_by(FieldJob.id.asc())
+
+    rows_stmt = (rows_stmt.offset((page - 1) * size).limit(size))
+
+    total = (await db.execute(count_stmt)).scalar_one()
+    items = (await db.execute(rows_stmt)).scalars().all()
+
+    return { "items": items, "total": total }
+
+    
+
+@router.get("", response_model=Page[FieldJobRead])
+async def list_field_jobs(
+    pagination: PaginationParams = Depends(),
+    search: str | None = Query(default=None, max_length=100),
+    priority: FieldJobPriority | None = Query(default=None),
+    status: FieldJobStatus | None = Query(default=None),
+    equipment_id: int | None = Query(default=None, ge=1),
+    operator_id: int | None = Query(default=None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("field_job:read"))
+):
+    return await query_field_job_page(
+        db, 
+        page=pagination.page,
+        size=pagination.size,
+        sort_by=pagination.sort_by,
+        sort_dir=pagination.sort_dir,
+        search=search,
+        priority=priority,
+        status=status,
+        equipment_id=equipment_id,
+        operator_id=operator_id,
+    )
+
+
+#---------
 
 @router.post("", response_model=FieldJobRead, status_code=status.HTTP_201_CREATED)
 async def create_field_jobs(
@@ -47,16 +143,16 @@ async def create_field_jobs(
     await db.refresh(field_job)
     return field_job
 
-@router.get("", response_model=list[FieldJobRead])
-async def list_field_jobs(
-    db: AsyncSession = Depends(get_db),
-    # _: User = Depends(get_current_user)
-    _: User = Depends(require_permission("field_job:read"))
-) -> list[FieldJobRead]:
-    statement = select(FieldJob).order_by(FieldJob.id)
-    result = await db.execute(statement)
-    field_jobs = result.scalars().all()
-    return field_jobs
+# @router.get("", response_model=list[FieldJobRead])
+# async def list_field_jobs(
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(get_current_user)
+#     _: User = Depends(require_permission("field_job:read"))
+# ) -> list[FieldJobRead]:
+#     statement = select(FieldJob).order_by(FieldJob.id)
+#     result = await db.execute(statement)
+#     field_jobs = result.scalars().all()
+#     return field_jobs
 
 @router.patch("/{field_job_id}", response_model=FieldJobRead)
 async def update_field_job(

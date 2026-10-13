@@ -6,14 +6,90 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status, File, Uplo
 from app.services.s3_service import create_presigned_download_url, upload_file_to_s3
 from app.config import settings
 
-from sqlalchemy import select, func, Float
+from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role, require_permission
+from app.dependencies import get_db, get_current_user, require_role, require_permission, PaginationParams
 from app.models import ServiceReport, User, UserRole, FieldJob
 from app.schemas.service_report import ServiceReportRead
+from app.schemas.pagination import Page
 
 router = APIRouter(prefix="/service-reports", tags=["service-reports"])
+
+SORT_COLUMNS = {
+    "id": ServiceReport.id,
+    "field_job_id": ServiceReport.field_job_id,
+    "file_url": ServiceReport.file_url,
+    "notes": ServiceReport.notes,
+    "timestamp": ServiceReport.timestamp,
+}
+
+async def query_operator_page(
+    db: AsyncSession,
+    *,
+    page: int, size: int, sort_by: str, sort_dir: str,
+    search: str | None = None,
+    field_job_id=None,
+):
+    sort_column = SORT_COLUMNS.get(sort_by)
+    if sort_column is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported sort field: {sort_by}",
+        )
+    
+    conditions = []
+
+    if search and search.strip():
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        pattern = f"%{term}%"
+        conditions.append(
+            or_(ServiceReport.notes.ilike(pattern, escape="\\"),)
+        )
+
+    if field_job_id is not None:
+        conditions.append(ServiceReport.field_job_id == field_job_id)
+
+    count_stmt = (
+        select(func.count()).select_from(ServiceReport).where(*conditions)
+    )
+    ordering = (sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    rows_stmt = (select(ServiceReport).where(*conditions).order_by(ordering))
+
+    # if sort_by by other columns may have same value => then sort_by id asc for those
+    if sort_by != "id":
+        rows_stmt = rows_stmt.order_by(ServiceReport.id.asc())
+
+    rows_stmt = (rows_stmt.offset((page - 1) * size).limit(size))
+
+    total = (await db.execute(count_stmt)).scalar_one()
+    items = (await db.execute(rows_stmt)).scalars().all()
+
+    return { "items": items, "total": total }
+
+@router.get("", response_model=Page[ServiceReportRead])
+async def list_service_reports(
+    pagination: PaginationParams = Depends(),
+    search: str | None = Query(default=None, max_length=100),
+    field_job_id: int | None = Query(default=None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("equipment:read"))
+):
+    return await query_operator_page(
+        db, 
+        page=pagination.page,
+        size=pagination.size,
+        sort_by=pagination.sort_by,
+        sort_dir=pagination.sort_dir,
+        search=search,
+        field_job_id=field_job_id,
+    )
+
 
 #TODO: Update upload service report when connect to AWS/S3Bucket
 @router.post("", response_model=ServiceReportRead)
@@ -58,16 +134,16 @@ async def upload_service_report(
 
     return service_report
 
-@router.get("", response_model=list[ServiceReportRead])
-async def list_service_reports(
-    db: AsyncSession = Depends(get_db),
-    # _: User = Depends(get_current_user)
-    _: User = Depends(require_permission("service_report:read"))
-) -> list[ServiceReportRead]:
-    statement = select(ServiceReport).order_by(ServiceReport.id)
-    result = await db.execute(statement)
-    service_reports = result.scalars().all()
-    return service_reports
+# @router.get("", response_model=list[ServiceReportRead])
+# async def list_service_reports(
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(get_current_user)
+#     _: User = Depends(require_permission("service_report:read"))
+# ) -> list[ServiceReportRead]:
+#     statement = select(ServiceReport).order_by(ServiceReport.id)
+#     result = await db.execute(statement)
+#     service_reports = result.scalars().all()
+#     return service_reports
 
 @router.get("/{service_report_id}/download-url")
 async def get_service_report_download_url(

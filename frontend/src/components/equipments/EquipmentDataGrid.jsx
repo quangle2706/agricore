@@ -260,6 +260,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                         onChange={(event) => updateFilter("status", event.target.value)}
                         size="small"
                         sx={{ minWidth: 170 }}>
+                            <MenuItem value="">All</MenuItem>
                             {STATUS_OPTIONS.map((option) => (
                                 <MenuItem key={option} value={option}>{option}</MenuItem>
                             ))}

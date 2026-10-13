@@ -2,17 +2,90 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from sqlalchemy import select, func, Float
+from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role, require_permission
+from app.dependencies import get_db, get_current_user, require_role, require_permission, PaginationParams
 from app.models import Operator, User, UserRole, Farm, FieldJob, FieldJobStatus
 from app.schemas.operator import OperatorCreate, OperatorRead, ActiveOperatorCountRead, ActiveOperatorRead
+from app.schemas.pagination import Page
 
 router = APIRouter(prefix="/operators", tags=["operators"])
 
-#TODO: -- Update checking if FarmID exists --
+SORT_COLUMNS = {
+    "id": Operator.id,
+    "name": Operator.name,
+    "farm_id": Operator.farm_id,
+}
 
+async def query_operator_page(
+    db: AsyncSession,
+    *,
+    page: int, size: int, sort_by: str, sort_dir: str,
+    search: str | None = None,
+    farm_id=None,
+):
+    sort_column = SORT_COLUMNS.get(sort_by)
+    if sort_column is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported sort field: {sort_by}",
+        )
+    
+    conditions = []
+
+    if search and search.strip():
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        pattern = f"%{term}%"
+        conditions.append(
+            or_(Operator.name.ilike(pattern, escape="\\"),)
+        )
+
+    if farm_id is not None:
+        conditions.append(Operator.farm_id == farm_id)
+
+    count_stmt = (
+        select(func.count()).select_from(Operator).where(*conditions)
+    )
+    ordering = (sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    rows_stmt = (select(Operator).where(*conditions).order_by(ordering))
+
+    # if sort_by by other columns may have same value => then sort_by id asc for those
+    if sort_by != "id":
+        rows_stmt = rows_stmt.order_by(Operator.id.asc())
+
+    rows_stmt = (rows_stmt.offset((page - 1) * size).limit(size))
+
+    total = (await db.execute(count_stmt)).scalar_one()
+    items = (await db.execute(rows_stmt)).scalars().all()
+
+    return { "items": items, "total": total }
+
+@router.get("", response_model=Page[OperatorRead])
+async def list_operators(
+    pagination: PaginationParams = Depends(),
+    search: str | None = Query(default=None, max_length=100),
+    farm_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("operator:read"))
+):
+    return await query_operator_page(
+        db, 
+        page=pagination.page,
+        size=pagination.size,
+        sort_by=pagination.sort_by,
+        sort_dir=pagination.sort_dir,
+        search=search,
+        farm_id=farm_id,
+    )
+
+
+#TODO: -- Update checking if FarmID exists --
 @router.post("", response_model=OperatorRead, status_code=status.HTTP_201_CREATED)
 async def create_operator(
     payload: OperatorCreate,
@@ -26,16 +99,16 @@ async def create_operator(
     await db.refresh(operator)
     return operator
 
-@router.get("", response_model=list[OperatorRead])
-async def list_operators(
-    db: AsyncSession = Depends(get_db),
-    # _: User = Depends(get_current_user)
-    _: User = Depends(require_permission("operator:read"))
-) -> list[OperatorRead]:
-    statement = select(Operator).order_by(Operator.id)
-    result = await db.execute(statement)
-    operators = result.scalars().all()
-    return operators
+# @router.get("", response_model=list[OperatorRead])
+# async def list_operators(
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(get_current_user)
+#     _: User = Depends(require_permission("operator:read"))
+# ) -> list[OperatorRead]:
+#     statement = select(Operator).order_by(Operator.id)
+#     result = await db.execute(statement)
+#     operators = result.scalars().all()
+#     return operators
 
 @router.patch("/{operator_id}", response_model=OperatorRead)
 async def update_operator(

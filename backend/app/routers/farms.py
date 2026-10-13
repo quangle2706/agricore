@@ -3,14 +3,92 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from sqlalchemy import select, func, Float
+from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_user, require_role, require_permission
+from app.dependencies import get_db, get_current_user, require_role, require_permission, PaginationParams
 from app.models import Farm, Equipment, EquipmentStatus, User, UserRole
 from app.schemas.farm import FarmRead, FarmCreate, FarmMaintenanceRead
+from app.schemas.pagination import Page
 
 router = APIRouter(prefix="/farms", tags=["farms"])
+
+SORT_COLUMNS = {
+    "id": Farm.id,
+    "name": Farm.name,
+    "location_region": Farm.location_region,
+    "capacity": Farm.capacity,
+    "supervisor_id": Farm.supervisor_id,
+}
+
+async def query_farm_page(
+    db: AsyncSession,
+    *,
+    page: int, size: int, sort_by: str, sort_dir: str,
+    search: str | None = None,
+    supervisor_id=None,
+):
+    sort_column = SORT_COLUMNS.get(sort_by)
+    if sort_column is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported sort field: {sort_by}",
+        )
+    
+    conditions = []
+
+    if search and search.strip():
+        term = (
+            search.strip()
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        pattern = f"%{term}%"
+        conditions.append(
+            or_(Farm.name.ilike(pattern, escape="\\"),
+                Farm.location_region.ilike(pattern, escape="\\"),)
+        )
+
+    if supervisor_id is not None:
+        conditions.append(Farm.supervisor_id == supervisor_id)
+
+    count_stmt = (
+        select(func.count()).select_from(Farm).where(*conditions)
+    )
+    ordering = (sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    rows_stmt = (select(Farm).where(*conditions).order_by(ordering))
+
+    # if sort_by by other columns may have same value => then sort_by id asc for those
+    if sort_by != "id":
+        rows_stmt = rows_stmt.order_by(Farm.id.asc())
+
+    rows_stmt = (rows_stmt.offset((page - 1) * size).limit(size))
+
+    total = (await db.execute(count_stmt)).scalar_one()
+    items = (await db.execute(rows_stmt)).scalars().all()
+
+    return { "items": items, "total": total }
+
+    
+
+@router.get("", response_model=Page[FarmRead])
+async def list_farms(
+    pagination: PaginationParams = Depends(),
+    search: str | None = Query(default=None, max_length=100),
+    supervisor_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("farm:read"))
+):
+    return await query_farm_page(
+        db, 
+        page=pagination.page,
+        size=pagination.size,
+        sort_by=pagination.sort_by,
+        sort_dir=pagination.sort_dir,
+        search=search,
+        supervisor_id=supervisor_id,
+    )
 
 #CRUD Endpoints
 @router.post("", response_model=FarmRead, status_code=status.HTTP_201_CREATED)
@@ -28,16 +106,16 @@ async def create_farm(
     return farm
 
 
-@router.get("", response_model=list[FarmRead])
-async def list_farms(
-    db: AsyncSession = Depends(get_db),
-    # _: User = Depends(get_current_user)
-    _: User = Depends(require_permission("farm:read"))
-) -> list[FarmRead]:
-    statement = select(Farm).order_by(Farm.id)
-    result = await db.execute(statement)
-    farms = result.scalars().all()
-    return farms
+# @router.get("", response_model=list[FarmRead])
+# async def list_farms(
+#     db: AsyncSession = Depends(get_db),
+#     # _: User = Depends(get_current_user)
+#     _: User = Depends(require_permission("farm:read"))
+# ) -> list[FarmRead]:
+#     statement = select(Farm).order_by(Farm.id)
+#     result = await db.execute(statement)
+#     farms = result.scalars().all()
+#     return farms
 
 @router.patch("/{farm_id}", response_model=FarmRead)
 async def update_farm(

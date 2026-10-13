@@ -62,6 +62,81 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // pagination
+    const [rows, setRows] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [reload, setReload] = useState(0);
+    const [searchInput, setSearchInput] = useState("");
+    const [query, setQuery] = useState({
+        page: 0,
+        pageSize: 10,
+        search: "",
+        fieldJobId: "",
+        sortModel: [{ field: "id", sort: "asc" }],
+    });
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setQuery(
+                (previous) => previous.search === searchInput 
+                ? previous : {...previous, search: searchInput, page: 0});
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        const controller = new AbortController(); // to cancel the request if the component unmounts
+        let active = true;
+
+        async function load() {
+            setLoading(true);
+            setError("");
+
+            const sort = query.sortModel[0];
+            try {
+                const response = await apiClient.get("/service-reports", {
+                    signal: controller.signal,
+                    params: {
+                        page: query.page + 1,
+                        size: query.pageSize,
+                        search: query.search.trim() || undefined,
+                        field_job_id: query.fieldJobId || undefined,
+                        sort_by: sort?.field ?? "id",
+                        sort_dir: sort?.sort ?? "asc",
+                    },
+                });
+
+                if (!active) return;
+                setRows(response.data.items);
+                setTotal(response.data.total);
+            } catch (err) {
+                if (!active || controller.signal.aborted) return;
+                setRows([]);
+                setError("Unable to load service reports");
+            } finally {
+                if (active) setLoading(false);
+            }
+        }
+
+        load();
+        return () => {
+            active = false;
+            controller.abort();
+        }
+    }, [query, reload]);
+
+    function updateFilter(field, value) {
+        setQuery((previous) => ({
+            ...previous,
+            [field]: value,
+            page: 0,
+        }));
+    }
+
+    // -------------    
+
+
     const [dialogOpen, setDialogOpen] = useState(false);
     const [formValues, setFormValues] = useState({
         field_job_id: '',
@@ -103,7 +178,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
             setDialogOpen(false);
             setFormValues({ field_job_id: '', notes: '' });
             setSelectedFile(null);
-            await fetchServiceReports();
+            setReload((previous) => previous + 1);
             onSuccess?.(`Service report created.`);
         } catch {
             setError('Could not create a service report');
@@ -114,29 +189,60 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
     if (error) return <Alert severity="error">{error}</Alert>
 
     return (
-        <>
+        <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TextField
+                    label="Field Job ID"
+                    type="number"
+                    value={query.fieldJobId}
+                    onChange={(event) =>
+                        updateFilter("fieldJobId", event.target.value)
+                    }
+                    slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                    size="small"
+                    sx={{ minWidth: 120 }}
+                    />
+                <TextField 
+                    label="Search notes" 
+                    value={searchInput} 
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    size="small" fullWidth
+                    />    
+            </Stack>
+            {error && (
+                <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
+            )}
             <Box sx={{ height: 400, width: '100%' }}>
-                <DataGrid
-                    loading={loading}
-                    rows={serviceReports}
+                <DataGrid 
+                    rows={rows}
                     columns={columns}
-                    getRowId={(row) => row.id}
-                    rowHeight={44}
-                    columnHeaderHeight={45}
-                    sx={{
-                        '& .MuiDataGrid-cell': {
-                            fontSize: '0.8rem',
-                            alignItems: 'center',
-                        },
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                        },
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: '#f4f6f8',
-                            borderBottom: '2px solid #d7dce2',
-                        },
+                    rowCount={total}
+                    loading={loading}
+                    pagination
+                    paginationMode="server"
+                    sortingMode="server"
+                    filterMode="server"
+                    disableColumnFilter
+                    pageSizeOptions={[10, 25, 50, 100]}
+                    paginationModel={{
+                        page: query.page,
+                        pageSize: query.pageSize,
                     }}
+                    onPaginationModelChange={(model) => 
+                        setQuery((previous) => ({
+                            ...previous,
+                            page: model.pageSize !== previous.pageSize ? 0 : model.page,
+                            pageSize: model.pageSize,
+                        }))
+                    }
+                    sortModel={query.sortModel}
+                    onSortModelChange={(sortModel) => 
+                        setQuery((previous) => ({
+                            ...previous,
+                            sortModel,
+                            page: 0,
+                        }))
+                    }
                 />
             </Box>
             <Button disabled={loading || !canCreateReport} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>
@@ -161,7 +267,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
                     <Button variant="contained" onClick={handleCreate}>Create</Button>
                 </DialogActions>
             </Dialog>
-        </>
+        </Stack>
     )
 }
 
