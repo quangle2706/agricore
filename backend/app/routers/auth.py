@@ -18,6 +18,10 @@ from app.permissions import get_role_name, get_role_permissions
 
 from app.schemas.pagination import Page
 
+from app.services.record_service import snapshot, soft_delete_record, restore_record, create_record, update_record, get_record
+from app.schemas.audit import AuditRead
+from app.services.audit_service import add_audit, read_history
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 SORT_COLUMNS = {
@@ -40,7 +44,9 @@ async def query_user_page(
             detail=f"Unsupported sort field: {sort_by}",
         )
     
-    conditions = []
+    conditions = [
+        User.deleted_at.is_(None),
+    ]
 
     if search and search.strip():
         term = (
@@ -92,6 +98,18 @@ async def list_users(
         role=role,
     )
 
+# get inactive list
+@router.get("/inactive", response_model=list[UserRead])
+async def inactive_users(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+):
+    statement = (
+        select(User).where(User.deleted_at.is_not(None))
+        .order_by(User.deleted_at.desc(), User.id.desc(),)
+    )
+
+    return (await db.scalars(statement)).all()
 
 # @router.post("/token", response_model=Token)
 # async def login(
@@ -143,7 +161,7 @@ async def login(
 async def register_user(
     payload: UserCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
 ) -> User:
     existing = await db.execute(select(User).where(func.lower(User.username) == payload.username.lower()))
     if existing.scalar_one_or_none() is not None:
@@ -159,6 +177,20 @@ async def register_user(
     )
 
     db.add(user)
+    await db.flush()
+
+    add_audit(
+        db,
+        record_type="user",
+        record_id=user.id,
+        action="CREATE",
+        actor=admin,
+        changes={
+            key: {"before": None, "after": value}
+            for key, value in snapshot(user).items()
+        },
+    )
+
     await db.commit()
     await db.refresh(user)
     return user
@@ -257,6 +289,7 @@ async def update_user(
     user_id: int,
     payload: UserUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     _: User = Depends(require_permission("user:update"))
 ) -> User:
@@ -267,22 +300,59 @@ async def update_user(
     user.role = payload.role
     if payload.password:
         user.hashed_password = hash_password(payload.password)
-    await db.commit()
-    await db.refresh(user)
-    return user
+
+    return await update_record(db, "user", user_id, payload, current_user)
+    # await db.commit()
+    # await db.refresh(user)
+    # return user
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     _: User = Depends(require_permission("user:delete"))
 ):
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
-    await db.delete(user)
-    await db.commit()
+
+    await soft_delete_record(db, "user", user_id, admin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    # await db.delete(user)
+    # await db.commit()
+
+
+# restore record
+@router.post("/{user_id}/restore", response_model=UserRead)
+async def restore_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+):
+    return await restore_record(db, "user", user_id, admin)
+
+# read history
+@router.get(
+    "/{user_id}/history",
+    response_model=list[AuditRead]
+)
+async def user_history(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    record = await get_record(db, "user", user_id, include_deleted=True,)
+
+    role = getattr(user.role, "value", user.role) # to handle enum and string representation of role
+
+    if (record.deleted_at is not None and role != UserRole.FARM_OPERATIONS_ADMIN):
+        raise HTTPException(404, "Record not found")
+
+    return await read_history(db, "user", user_id)
+
 
 #--- get permissions of user
 @router.get("/me", response_model=CurrentUserRead)

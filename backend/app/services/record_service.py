@@ -5,12 +5,16 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Equipment, FieldJob, User
+from app.models import Equipment, FieldJob, User, Farm, Operator, ServiceReport
 from app.services.audit_service import add_audit
 
 RECORD_MODELS = {
     "equipment": Equipment,
     "field_job": FieldJob,
+    "farm": Farm,
+    "operator": Operator,
+    "service_report": ServiceReport,
+    "user": User,
 }
 
 async def get_record(
@@ -57,6 +61,7 @@ def snapshot(record) -> dict:
     })
 
 
+# TODO: fix other references
 async def validate_equipment_reference(
     db: AsyncSession,
     record_type: str,

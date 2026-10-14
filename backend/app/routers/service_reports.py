@@ -2,7 +2,7 @@
 import uuid 
 from urllib.parse import quote, unquote, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile, Form, Response
 from app.services.s3_service import create_presigned_download_url, upload_file_to_s3
 from app.config import settings
 
@@ -13,6 +13,10 @@ from app.dependencies import get_db, get_current_user, require_role, require_per
 from app.models import ServiceReport, User, UserRole, FieldJob
 from app.schemas.service_report import ServiceReportRead
 from app.schemas.pagination import Page
+
+from app.services.record_service import soft_delete_record, restore_record, create_record, update_record, get_record, snapshot
+from app.schemas.audit import AuditRead
+from app.services.audit_service import add_audit, read_history
 
 router = APIRouter(prefix="/service-reports", tags=["service-reports"])
 
@@ -38,7 +42,9 @@ async def query_operator_page(
             detail=f"Unsupported sort field: {sort_by}",
         )
     
-    conditions = []
+    conditions = [
+        ServiceReport.deleted_at.is_(None),
+    ]
 
     if search and search.strip():
         term = (
@@ -91,6 +97,24 @@ async def list_service_reports(
     )
 
 
+# inactive list
+@router.get("/inactive", response_model=list[ServiceReportRead])
+async def inactive_service_reports(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+):
+    statement = (
+        select(ServiceReport)
+        .where(ServiceReport.deleted_at.is_not(None))
+        .order_by(
+            ServiceReport.deleted_at.desc(),
+            ServiceReport.id.desc(),
+        )
+    )
+
+    return (await db.scalars(statement)).all()
+
+
 #TODO: Update upload service report when connect to AWS/S3Bucket
 @router.post("", response_model=ServiceReportRead)
 async def upload_service_report(
@@ -98,6 +122,7 @@ async def upload_service_report(
     file: UploadFile = File(...),
     note: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN, UserRole.FIELD_HAND))
     _: User = Depends(require_permission("service_report:create"))
 ) -> ServiceReportRead:
@@ -128,7 +153,23 @@ async def upload_service_report(
         ),
         notes=note or ""
     )
+
+
     db.add(service_report)
+    await db.flush()
+
+    add_audit(
+        db,
+        record_type="service_report",
+        record_id=field_job_id,
+        action="CREATE",
+        actor=current_user,
+        changes={
+            key: {"before": None, "after": value}
+            for key, value in snapshot(service_report).items()
+        },
+    )
+
     await db.commit()
     await db.refresh(service_report)
 
@@ -192,6 +233,7 @@ async def get_service_report_download_url(
 async def delete_service_report(
     service_report_id: int,
     db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("service_report:delete"))
 ):
@@ -201,5 +243,36 @@ async def delete_service_report(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Service Report {service_report_id} not found"
         )
-    await db.delete(service_report)
-    await db.commit()
+
+    await soft_delete_record(db, "service_report", service_report_id, admin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    # await db.delete(service_report)
+    # await db.commit()
+
+@router.post("/{service_report_id}/restore", response_model=ServiceReportRead)
+async def restore_service_report(
+    service_report_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+):
+    return await restore_record(db, "service_report", service_report_id, admin)
+
+# read history
+@router.get(
+    "/{service_report_id}/history",
+    response_model=list[AuditRead]
+)
+async def service_report_history(
+    service_report_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    record = await get_record(db, "service_report", service_report_id, include_deleted=True,)
+
+    role = getattr(user.role, "value", user.role) # to handle enum and string representation of role
+
+    if (record.deleted_at is not None and role != UserRole.FARM_OPERATIONS_ADMIN):
+        raise HTTPException(404, "Record not found")
+
+    return await read_history(db, "service_report", service_report_id)

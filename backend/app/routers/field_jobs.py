@@ -1,6 +1,6 @@
 #Define Field Job API endpoints
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 
 from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,10 @@ from app.schemas.field_job import (
     FieldJobStatusUpdate,
 )
 from app.schemas.pagination import Page
+
+from app.services.record_service import soft_delete_record, restore_record, create_record, update_record, get_record
+from app.schemas.audit import AuditRead
+from app.services.audit_service import add_audit, read_history
 
 router = APIRouter(prefix="/field-jobs", tags=["field-jobs"])
 
@@ -44,7 +48,9 @@ async def query_field_job_page(
             detail=f"Unsupported sort field: {sort_by}",
         )
     
-    conditions = []
+    conditions = [
+        FieldJob.deleted_at.is_(None),
+    ]
 
     if search and search.strip():
         term = (
@@ -111,12 +117,30 @@ async def list_field_jobs(
     )
 
 
+# inactive list
+@router.get("/inactive", response_model=list[FieldJobRead])
+async def inactive_field_jobs(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+):
+    statement = (
+        select(FieldJob)
+        .where(FieldJob.deleted_at.is_not(None))
+        .order_by(
+            FieldJob.deleted_at.desc(),
+            FieldJob.id.desc(),
+        )
+    )
+
+    return (await db.scalars(statement)).all()
+
 #---------
 
 @router.post("", response_model=FieldJobRead, status_code=status.HTTP_201_CREATED)
 async def create_field_jobs(
     payload: FieldJobCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("field_job:create"))
 ) -> FieldJobRead:
@@ -138,10 +162,12 @@ async def create_field_jobs(
             detail=f"Operator '{field_job.operator_id}' not found"
         )
 
-    db.add(field_job)
-    await db.commit()
-    await db.refresh(field_job)
-    return field_job
+    return await create_record(db, "field_job", payload, current_user)
+
+    # db.add(field_job)
+    # await db.commit()
+    # await db.refresh(field_job)
+    # return field_job
 
 # @router.get("", response_model=list[FieldJobRead])
 # async def list_field_jobs(
@@ -159,6 +185,7 @@ async def update_field_job(
     field_job_id: int,
     payload: FieldJobCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("field_job:update"))
 ) -> FieldJobRead:
@@ -187,14 +214,17 @@ async def update_field_job(
             detail=f"Operator '{field_job.operator_id}' not found"
         )
 
-    await db.commit()
-    await db.refresh(field_job)
-    return field_job
+    return await update_record(db, "field_job", field_job_id, payload, current_user)
+
+    # await db.commit()
+    # await db.refresh(field_job)
+    # return field_job
 
 @router.delete("/{field_job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_field_job(
     field_job_id: int,
     db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("field_job:delete"))
 ):
@@ -204,8 +234,42 @@ async def delete_field_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Field Job {field_job_id} not found"
         )
-    await db.delete(field_job)
-    await db.commit()
+
+    await soft_delete_record(db, "field_job", field_job_id, admin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    # await db.delete(field_job)
+    # await db.commit()
+
+@router.post("/{field_job_id}/restore", response_model=FieldJobRead)
+async def restore_field_job(
+    field_job_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+):
+    return await restore_record(db, "field_job", field_job_id, admin)
+
+
+# read history
+@router.get(
+    "/{field_job_id}/history",
+    response_model=list[AuditRead]
+)
+async def field_job_history(
+    field_job_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    record = await get_record(db, "field_job", field_job_id, include_deleted=True,)
+
+    role = getattr(user.role, "value", user.role) # to handle enum and string representation of role
+
+    if (record.deleted_at is not None and role != UserRole.FARM_OPERATIONS_ADMIN):
+        raise HTTPException(404, "Record not found")
+
+    return await read_history(db, "field_job", field_job_id)
+
+#--------------
 
 #Update status of a field job
 @router.patch("/{field_job_id}/status", response_model=FieldJobRead)

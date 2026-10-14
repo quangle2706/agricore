@@ -1,7 +1,7 @@
 #Define Farm APIs
 #including: CRUD + endpoint that answer a business question
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 
 from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,10 @@ from app.dependencies import get_db, get_current_user, require_role, require_per
 from app.models import Farm, Equipment, EquipmentStatus, User, UserRole
 from app.schemas.farm import FarmRead, FarmCreate, FarmMaintenanceRead
 from app.schemas.pagination import Page
+
+from app.services.record_service import soft_delete_record, restore_record, create_record, update_record, get_record
+from app.schemas.audit import AuditRead
+from app.services.audit_service import add_audit, read_history
 
 router = APIRouter(prefix="/farms", tags=["farms"])
 
@@ -35,7 +39,9 @@ async def query_farm_page(
             detail=f"Unsupported sort field: {sort_by}",
         )
     
-    conditions = []
+    conditions = [
+        Farm.deleted_at.is_(None),
+    ]
 
     if search and search.strip():
         term = (
@@ -70,8 +76,6 @@ async def query_farm_page(
 
     return { "items": items, "total": total }
 
-    
-
 @router.get("", response_model=Page[FarmRead])
 async def list_farms(
     pagination: PaginationParams = Depends(),
@@ -90,20 +94,37 @@ async def list_farms(
         supervisor_id=supervisor_id,
     )
 
+# get inactive list
+@router.get("/inactive", response_model=list[FarmRead])
+async def inactive_farms(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+):
+    statement = (
+        select(Farm).where(Farm.deleted_at.is_not(None))
+        .order_by(Farm.deleted_at.desc(), Farm.id.desc(),)
+    )
+
+    return (await db.scalars(statement)).all()
+
 #CRUD Endpoints
 @router.post("", response_model=FarmRead, status_code=status.HTTP_201_CREATED)
 async def create_farm(
     payload: FarmCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("farm:create"))
 ) -> FarmRead:
-    farm = Farm(**payload.model_dump())
-    db.add(farm)
-    await db.commit()
-    await db.refresh(farm)
 
-    return farm
+    return await create_record(db, "farm", payload, current_user)
+    
+    # farm = Farm(**payload.model_dump())
+    # db.add(farm)
+    # await db.commit()
+    # await db.refresh(farm)
+
+    # return farm
 
 
 # @router.get("", response_model=list[FarmRead])
@@ -122,31 +143,67 @@ async def update_farm(
     farm_id: int,
     payload: FarmCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("farm:update"))
 ) -> FarmRead:
-    farm = await db.get(Farm, farm_id)
-    if farm is None:
-        raise HTTPException(status_code=404, detail=f"Farm {farm_id} not found")
-    for key, value in payload.model_dump().items():
-        setattr(farm, key, value)
-    await db.commit()
-    await db.refresh(farm)
-    return farm
+
+    return await update_record(db, "farm", farm_id, payload, current_user)
+    
+    # farm = await db.get(Farm, farm_id)
+    # if farm is None:
+    #     raise HTTPException(status_code=404, detail=f"Farm {farm_id} not found")
+    # for key, value in payload.model_dump().items():
+    #     setattr(farm, key, value)
+    # await db.commit()
+    # await db.refresh(farm)
+    # return farm
 
 @router.delete("/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_farm(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("farm:delete"))
 ):
-    farm = await db.get(Farm, farm_id)
-    if farm is None:
-        raise HTTPException(status_code=404, detail=f"Farm {farm_id} not found")
-    await db.delete(farm)
-    await db.commit()
+    await soft_delete_record(db, "farm", farm_id, admin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    # farm = await db.get(Farm, farm_id)
+    # if farm is None:
+    #     raise HTTPException(status_code=404, detail=f"Farm {farm_id} not found")
+    # await db.delete(farm)
+    # await db.commit()
 
+
+# restore record
+@router.post("/{farm_id}/restore", response_model=FarmRead)
+async def restore_farm(
+    farm_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+):
+    return await restore_record(db, "farm", farm_id, admin)
+
+# read history
+@router.get(
+    "/{farm_id}/history",
+    response_model=list[AuditRead]
+)
+async def farm_history(
+    farm_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    record = await get_record(db, "farm", farm_id, include_deleted=True,)
+
+    role = getattr(user.role, "value", user.role) # to handle enum and string representation of role
+
+    if (record.deleted_at is not None and role != UserRole.FARM_OPERATIONS_ADMIN):
+        raise HTTPException(404, "Record not found")
+
+    return await read_history(db, "farm", farm_id)
 
 #--Business Question 4
 @router.get("/maintenance-ratio", response_model=list[FarmMaintenanceRead])

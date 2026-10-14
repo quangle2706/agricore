@@ -1,6 +1,6 @@
 #Define Operator API endpoints
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 
 from sqlalchemy import select, func, Float, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,10 @@ from app.dependencies import get_db, get_current_user, require_role, require_per
 from app.models import Operator, User, UserRole, Farm, FieldJob, FieldJobStatus
 from app.schemas.operator import OperatorCreate, OperatorRead, ActiveOperatorCountRead, ActiveOperatorRead
 from app.schemas.pagination import Page
+
+from app.services.record_service import soft_delete_record, restore_record, create_record, update_record, get_record
+from app.schemas.audit import AuditRead
+from app.services.audit_service import add_audit, read_history
 
 router = APIRouter(prefix="/operators", tags=["operators"])
 
@@ -32,7 +36,9 @@ async def query_operator_page(
             detail=f"Unsupported sort field: {sort_by}",
         )
     
-    conditions = []
+    conditions = [
+        Operator.deleted_at.is_(None),
+    ]
 
     if search and search.strip():
         term = (
@@ -84,20 +90,37 @@ async def list_operators(
         farm_id=farm_id,
     )
 
+# get inactive list
+@router.get("/inactive", response_model=list[OperatorRead])
+async def inactive_operators(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
+):
+    statement = (
+        select(Operator).where(Operator.deleted_at.is_not(None))
+        .order_by(Operator.deleted_at.desc(), Operator.id.desc(),)
+    )
+
+    return (await db.scalars(statement)).all()
+
 
 #TODO: -- Update checking if FarmID exists --
 @router.post("", response_model=OperatorRead, status_code=status.HTTP_201_CREATED)
 async def create_operator(
     payload: OperatorCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("operator:create"))
 ) -> OperatorRead:
-    operator = Operator(**payload.model_dump())
-    db.add(operator)
-    await db.commit()
-    await db.refresh(operator)
-    return operator
+
+    return await create_record(db, "operator", payload, current_user)
+    
+    # operator = Operator(**payload.model_dump())
+    # db.add(operator)
+    # await db.commit()
+    # await db.refresh(operator)
+    # return operator
 
 # @router.get("", response_model=list[OperatorRead])
 # async def list_operators(
@@ -115,37 +138,74 @@ async def update_operator(
     operator_id: int,
     payload: OperatorCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("operator:update"))
 ) -> OperatorRead:
-    operator = await db.get(Operator, operator_id)
-    if operator is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Operator {operator_id} not found"
-        )
-    for key, value in payload.model_dump().items():
-        setattr(operator, key, value)
 
-    await db.commit()
-    await db.refresh(operator)
-    return operator
+    return await update_record(db, "operator", operator_id, payload, current_user)
+    
+    # operator = await db.get(Operator, operator_id)
+    # if operator is None:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail=f"Operator {operator_id} not found"
+    #     )
+    # for key, value in payload.model_dump().items():
+    #     setattr(operator, key, value)
+
+    # await db.commit()
+    # await db.refresh(operator)
+    # return operator
 
 @router.delete("/{operator_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_operator(
     operator_id: int,
     db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))
     _: User = Depends(require_permission("operator:delete"))
 ):
-    operator = await db.get(Operator, operator_id)
-    if operator is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Operator {operator_id} not found"
-        )
-    await db.delete(operator)
-    await db.commit()
+    await soft_delete_record(db, "operator", operator_id, admin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    # operator = await db.get(Operator, operator_id)
+    # if operator is None:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail=f"Operator {operator_id} not found"
+    #     )
+    # await db.delete(operator)
+    # await db.commit()
+
+# restore record
+@router.post("/{operator_id}/restore", response_model=OperatorRead)
+async def restore_operator(
+    operator_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN)),
+):
+    return await restore_record(db, "operator", operator_id, admin)
+
+# read history
+@router.get(
+    "/{operator_id}/history",
+    response_model=list[AuditRead]
+)
+async def operator_history(
+    operator_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    record = await get_record(db, "operator", operator_id, include_deleted=True,)
+
+    role = getattr(user.role, "value", user.role) # to handle enum and string representation of role
+
+    if (record.deleted_at is not None and role != UserRole.FARM_OPERATIONS_ADMIN):
+        raise HTTPException(404, "Record not found")
+
+    return await read_history(db, "operator", operator_id)
+
 
 #Question 5:
 #---------
