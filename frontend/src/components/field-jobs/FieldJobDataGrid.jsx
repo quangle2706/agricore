@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    MenuItem, IconButton
+    MenuItem, IconButton, Typography
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import RestoreIcon from '@mui/icons-material/Restore';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import apiClient from "../../api/client";
 import usePermissions from "../../hooks/usePermissions";
+import RecordHistoryDialog from "../audit/RecordHistoryDialog";
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 70}, // default type is String
@@ -22,7 +25,7 @@ const PRIORITY_OPTIONS = ['Low', 'Medium', 'Critical'];
 const STATUS_OPTIONS = ['Pending', 'In-Progress', 'Completed', 'Failed'];
 
 function FieldJobDataGrid({ onSuccess, userRole }) {
-    // const isAdmin = userRole === 'Farm Operations Admin';
+    const isAdmin = userRole === 'Farm Operations Admin';
     // const canUpdateStatus = isAdmin || userRole === 'Field Hand';
     const { hasPermission } = usePermissions();
     const canCreateFieldJob = hasPermission("field_job:create");
@@ -31,14 +34,19 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
     const canUpdateStatusFJ = hasPermission("field_job:update_status");
     const canUpdate = canUpdateFieldJob || canUpdateStatusFJ;
 
-    const [fieldJobs, setFieldJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     // pagination
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
+    const [inactiveRows, setInactiveRows] = useState([]);
     const [reload, setReload] = useState(0);
+    const [history, setHistory] = useState([]);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState("");
+    const [historyFieldJob, setHistoryFieldJob] = useState(null);
     const [searchInput, setSearchInput] = useState("");
     const [query, setQuery] = useState({
         page: 0,
@@ -105,6 +113,27 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
         }
     }, [query, reload]);
 
+    useEffect(() => {
+        if (!isAdmin) return undefined;
+
+        const controller = new AbortController();
+        let active = true;
+        async function loadInactive() {
+            try {
+                const response = await apiClient.get("/field-jobs/inactive", { signal: controller.signal });
+                if (active) setInactiveRows(response.data);
+            } catch {
+                if (active && !controller.signal.aborted) setError("Unable to load inactive field jobs");
+            }
+        }
+
+        loadInactive();
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [isAdmin, reload]);
+
     function updateFilter(field, value) {
         setQuery((previous) => ({
             ...previous,
@@ -127,26 +156,7 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
         operator_id: '',
     });
 
-    async function fetchFieldJobs() {
-        setLoading(true);
-        try {
-            const response = await apiClient.get('/field-jobs');
-            setFieldJobs(response.data);
-            setError(null);
-        } catch {
-            setError('Could not load data');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        fetchFieldJobs();
-    }, []);
-
     if (loading) return <CircularProgress />
-    if (error) return <Alert severity="error">{error}</Alert>
-
     const openCreateDialog = () => {
         setSelectedFieldJob(null);
         setFormValues({ title: '', priority: '', status: '', equipment_id: '', operator_id: '' });
@@ -249,12 +259,38 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
         }
     };
 
+    const handleRestoreRow = async (job) => {
+        try {
+            await apiClient.post(`/field-jobs/${job.id}/restore`);
+            setReload((previous) => previous + 1);
+            onSuccess?.(`Field job ${job.title} restored.`);
+        } catch {
+            setError('Could not restore field job');
+        }
+    };
+
+    const showHistory = async (job) => {
+        setHistoryFieldJob(job);
+        setHistory([]);
+        setHistoryError("");
+        setHistoryOpen(true);
+        setHistoryLoading(true);
+        try {
+            const response = await apiClient.get(`/field-jobs/${job.id}/history`);
+            setHistory(response.data);
+        } catch {
+            setHistoryError("Could not load history");
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     const gridColumns = [
         ...columns,
-        ...(canUpdate ? [{
+        ...(canUpdate || canDeleteFieldJob ? [{
             field: 'actions',
             headerName: 'Actions',
-            width: canUpdate ? 100 : 60,
+            width: 150,
             sortable: false,
             filterable: false,
             align: 'center',
@@ -285,9 +321,46 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                             <DeleteOutlinedIcon fontSize="small" />
                         </IconButton>
                     )}
+                    {canDeleteFieldJob && (
+                        <IconButton aria-label={`Show history for field job ${row.title}`} size="small" onClick={(event) => {
+                            event.stopPropagation();
+                            showHistory(row);
+                        }}>
+                            <HistoryToggleOffIcon fontSize="small" />
+                        </IconButton>
+                    )}
                 </Stack>
             ),
         }] : []),
+    ];
+
+    const inactiveColumns = [
+        ...columns,
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 100,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton aria-label={`Restore field job ${row.title}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        handleRestoreRow(row);
+                    }}>
+                        <RestoreIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton aria-label={`Show history for field job ${row.title}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        showHistory(row);
+                    }}>
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
+            ),
+        },
     ];
 
     return (
@@ -383,6 +456,14 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                     onRowClick={handleRowClick}
                 />
             </Box>
+            {isAdmin && (
+                <>
+                    <Typography>Inactive Field Jobs</Typography>
+                    <Box sx={{ height: 300, width: '100%' }}>
+                        <DataGrid rows={inactiveRows} columns={inactiveColumns} loading={loading} pageSizeOptions={[10, 25, 50, 100]} />
+                    </Box>
+                </>
+            )}
             <Button disabled={loading || !canCreateFieldJob} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedFieldJob ? 'Edit Field Job' : 'Add New Field Job'}</DialogTitle>
@@ -432,6 +513,14 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                     <Button variant="contained" onClick={handleStatusUpdate}>Update Status</Button>
                 </DialogActions>
             </Dialog>
+            <RecordHistoryDialog
+                open={historyOpen}
+                onClose={() => setHistoryOpen(false)}
+                title={historyFieldJob?.title}
+                entries={history}
+                loading={historyLoading}
+                error={historyError}
+            />
         </Stack>
     )
 }

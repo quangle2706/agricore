@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    MenuItem, IconButton
+    MenuItem, IconButton, Typography
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import RestoreIcon from '@mui/icons-material/Restore';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import apiClient from "../../api/client";
 import usePermissions from "../../hooks/usePermissions";
+import RecordHistoryDialog from "../audit/RecordHistoryDialog";
 
 const columns = [
     { field: 'id', headerName: 'ID', width: 70}, // default type is String
@@ -17,7 +20,7 @@ const columns = [
 const ROLE_OPTIONS = ['Farm Operations Admin', 'Field Hand', 'Auditor'];
 
 function UserDataGrid({ onSuccess, userRole }) {
-    // const isAdmin = userRole === 'Farm Operations Admin';
+    const isAdmin = userRole === 'Farm Operations Admin';
     const { hasPermission } = usePermissions();
     const canCreateUser = hasPermission("user:create");
     const canUpdateUser = hasPermission("user:update");
@@ -30,7 +33,13 @@ function UserDataGrid({ onSuccess, userRole }) {
     // pagination
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
+    const [inactiveRows, setInactiveRows] = useState([]);
     const [reload, setReload] = useState(0);
+    const [history, setHistory] = useState([]);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState("");
+    const [historyUser, setHistoryUser] = useState(null);
     const [searchInput, setSearchInput] = useState("");
     const [query, setQuery] = useState({
         page: 0,
@@ -91,6 +100,27 @@ function UserDataGrid({ onSuccess, userRole }) {
         }
     }, [query, reload]);
 
+    useEffect(() => {
+        if (!isAdmin) return undefined;
+
+        const controller = new AbortController();
+        let active = true;
+        async function loadInactive() {
+            try {
+                const response = await apiClient.get("/auth/inactive", { signal: controller.signal });
+                if (active) setInactiveRows(response.data);
+            } catch {
+                if (active && !controller.signal.aborted) setError("Unable to load inactive users");
+            }
+        }
+
+        loadInactive();
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [isAdmin, reload]);
+
     function updateFilter(field, value) {
         setQuery((previous) => ({
             ...previous,
@@ -112,8 +142,6 @@ function UserDataGrid({ onSuccess, userRole }) {
     });
 
     if (loading) return <CircularProgress />
-    if (error) return <Alert severity="error">{error}</Alert>
-
     const openCreateDialog = () => {
         setSelectedUser(null);
         setFormError(null);
@@ -208,30 +236,88 @@ function UserDataGrid({ onSuccess, userRole }) {
         }
     };
 
+    const handleRestoreRow = async (user) => {
+        try {
+            await apiClient.post(`/auth/${user.id}/restore`);
+            setReload((previous) => previous + 1);
+            onSuccess?.(`User ${user.username} restored.`);
+        } catch {
+            setError('Could not restore user');
+        }
+    };
+
+    const showHistory = async (user) => {
+        setHistoryUser(user);
+        setHistory([]);
+        setHistoryError("");
+        setHistoryOpen(true);
+        setHistoryLoading(true);
+        try {
+            const response = await apiClient.get(`/auth/${user.id}/history`);
+            setHistory(response.data);
+        } catch {
+            setHistoryError("Could not load history");
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     const gridColumns = [
         ...columns,
-        (canDeleteUser && {
+        ...(canDeleteUser ? [{
             field: 'actions',
             headerName: 'Actions',
-            width: 80,
+            width: 110,
             sortable: false,
             filterable: false,
             align: 'center',
             headerAlign: 'center',
             renderCell: ({ row }) => (
-                <IconButton
-                    aria-label={`Delete farm ${row.name}`}
-                    color="error"
-                    size="small"
-                    onClick={(event) => {
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton aria-label={`Delete user ${row.username}`} color="error" size="small" onClick={(event) => {
                         event.stopPropagation();
                         handleDeleteRow(row);
-                    }}
-                >
-                    <DeleteOutlinedIcon fontSize="small" />
-                </IconButton>
+                    }}>
+                        <DeleteOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton aria-label={`Show history for user ${row.username}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        showHistory(row);
+                    }}>
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
             ),
-        }),
+        }] : []),
+    ];
+
+    const inactiveColumns = [
+        ...columns,
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 110,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton aria-label={`Restore user ${row.username}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        handleRestoreRow(row);
+                    }}>
+                        <RestoreIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton aria-label={`Show history for user ${row.username}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        showHistory(row);
+                    }}>
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
+            ),
+        },
     ];
 
     return (
@@ -293,6 +379,14 @@ function UserDataGrid({ onSuccess, userRole }) {
                     onRowClick={handleRowClick}
                 />
             </Box>
+            {isAdmin && (
+                <>
+                    <Typography>Inactive Users</Typography>
+                    <Box sx={{ height: 300, width: '100%' }}>
+                        <DataGrid rows={inactiveRows} columns={inactiveColumns} loading={loading} pageSizeOptions={[10, 25, 50, 100]} />
+                    </Box>
+                </>
+            )}
             <Button disabled={loading || !canCreateUser} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add User</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedUser ? 'Edit User' : 'Add New User'}</DialogTitle>
@@ -318,6 +412,14 @@ function UserDataGrid({ onSuccess, userRole }) {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <RecordHistoryDialog
+                open={historyOpen}
+                onClose={() => setHistoryOpen(false)}
+                title={historyUser?.username}
+                entries={history}
+                loading={historyLoading}
+                error={historyError}
+            />
         </Stack>
     )
 }

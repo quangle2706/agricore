@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, 
-    Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip
+    Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip, Typography, IconButton
  } from "@mui/material";
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import RestoreIcon from '@mui/icons-material/Restore';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import apiClient from '../../api/client';
 import usePermissions from "../../hooks/usePermissions";
+import RecordHistoryDialog from "../audit/RecordHistoryDialog";
 
 function DownloadFileButton({ serviceReportId }) {
     const [loading, setLoading] = useState(false);
@@ -44,7 +48,7 @@ const columns = [
     {
         field: 'file_url',
         headerName: "File",
-        width: 310,
+        width: 140,
         renderCell: ({ row }) => (
             <DownloadFileButton serviceReportId={row.id} />
         ),
@@ -54,18 +58,24 @@ const columns = [
 
 
 function ServiceReportDataGrid({ onSuccess, userRole }) {
-    // const canAddNew = userRole === 'Farm Operations Admin' || userRole === 'Field Hand';
+    const isAdmin = userRole === 'Farm Operations Admin';
     const { hasPermission } = usePermissions();
     const canCreateReport = hasPermission("service_report:create");
+    const canDeleteReport = hasPermission("service_report:delete");
 
-    const [serviceReports, setServiceReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     // pagination
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
+    const [inactiveRows, setInactiveRows] = useState([]);
     const [reload, setReload] = useState(0);
+    const [history, setHistory] = useState([]);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState("");
+    const [historyReport, setHistoryReport] = useState(null);
     const [searchInput, setSearchInput] = useState("");
     const [query, setQuery] = useState({
         page: 0,
@@ -126,6 +136,27 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
         }
     }, [query, reload]);
 
+    useEffect(() => {
+        if (!isAdmin) return undefined;
+
+        const controller = new AbortController();
+        let active = true;
+        async function loadInactive() {
+            try {
+                const response = await apiClient.get("/service-reports/inactive", { signal: controller.signal });
+                if (active) setInactiveRows(response.data);
+            } catch {
+                if (active && !controller.signal.aborted) setError("Unable to load inactive service reports");
+            }
+        }
+
+        loadInactive();
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [isAdmin, reload]);
+
     function updateFilter(field, value) {
         setQuery((previous) => ({
             ...previous,
@@ -144,26 +175,108 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
     });
     const [selectedFile, setSelectedFile] = useState(null);
 
-    async function fetchServiceReports() {
-        setLoading(true);
-        try {
-            const response = await apiClient.get('/service-reports');
-            setServiceReports(response.data);
-            setError(null);
-        } catch {
-            setError('Could not load data');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        fetchServiceReports();
-    }, []);
-
     const handleFieldChange = (field) => (event) => {
         setFormValues((prev) => ({ ...prev, [field]: event.target.value }))
     }
+
+    const handleDeleteRow = async (report) => {
+        if (!window.confirm(`Delete service report ${report.id}?`)) return;
+        try {
+            await apiClient.delete(`/service-reports/${report.id}`);
+            if (rows.length === 1 && query.page > 0) {
+                setQuery((previous) => ({ ...previous, page: previous.page - 1 }));
+            } else {
+                setReload((previous) => previous + 1);
+            }
+            onSuccess?.(`Service report ${report.id} deleted.`);
+        } catch {
+            setError("Could not delete service report");
+        }
+    };
+
+    const handleRestoreRow = async (report) => {
+        try {
+            await apiClient.post(`/service-reports/${report.id}/restore`);
+            setReload((previous) => previous + 1);
+            onSuccess?.(`Service report ${report.id} restored.`);
+        } catch {
+            setError("Could not restore service report");
+        }
+    };
+
+    const showHistory = async (report) => {
+        setHistoryReport(report);
+        setHistory([]);
+        setHistoryError("");
+        setHistoryOpen(true);
+        setHistoryLoading(true);
+        try {
+            const response = await apiClient.get(`/service-reports/${report.id}/history`);
+            setHistory(response.data);
+        } catch {
+            setHistoryError("Could not load history");
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const gridColumns = [
+        ...columns,
+        ...(canDeleteReport ? [{
+            field: 'actions',
+            headerName: 'Actions',
+            width: 110,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ width: '100%' }}>
+                    <IconButton aria-label={`Delete service report ${row.id}`} color="error" size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteRow(row);
+                    }}>
+                        <DeleteOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton aria-label={`Show history for service report ${row.id}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        showHistory(row);
+                    }}>
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
+            ),
+        }] : []),
+    ];
+
+    const inactiveColumns = [
+        ...columns,
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 110,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton aria-label={`Restore service report ${row.id}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        handleRestoreRow(row);
+                    }}>
+                        <RestoreIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton aria-label={`Show history for service report ${row.id}`} size="small" onClick={(event) => {
+                        event.stopPropagation();
+                        showHistory(row);
+                    }}>
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
+            ),
+        },
+    ];
 
     const handleCreate = async() => {
         if (!selectedFile) return;
@@ -186,8 +299,6 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
     }
 
     if (loading) return <CircularProgress />
-    if (error) return <Alert severity="error">{error}</Alert>
-
     return (
         <Stack spacing={2}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -215,7 +326,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
             <Box sx={{ height: 400, width: '100%' }}>
                 <DataGrid 
                     rows={rows}
-                    columns={columns}
+                    columns={gridColumns}
                     rowCount={total}
                     loading={loading}
                     pagination
@@ -245,6 +356,19 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
                     }
                 />
             </Box>
+            {isAdmin && (
+                <>
+                    <Typography>Inactive Service Reports</Typography>
+                    <Box sx={{ height: 300, width: '100%' }}>
+                        <DataGrid
+                            rows={inactiveRows}
+                            columns={inactiveColumns}
+                            loading={loading}
+                            pageSizeOptions={[10, 25, 50, 100]}
+                        />
+                    </Box>
+                </>
+            )}
             <Button disabled={loading || !canCreateReport} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }} >Add New Service Report</DialogTitle>
@@ -267,6 +391,14 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
                     <Button variant="contained" onClick={handleCreate}>Create</Button>
                 </DialogActions>
             </Dialog>
+            <RecordHistoryDialog
+                open={historyOpen}
+                onClose={() => setHistoryOpen(false)}
+                title={historyReport ? `Service Report #${historyReport.id}` : ""}
+                entries={history}
+                loading={historyLoading}
+                error={historyError}
+            />
         </Stack>
     )
 }
