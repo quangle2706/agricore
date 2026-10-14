@@ -62,7 +62,7 @@ function ActiveLowFuelEquipmentDataGrid({ onSuccess }) {
     return (
         <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ fontSize: '0.8rem' }}>
+                <Typography variant="subtitle2">
                     Fuel Level Threshold (%)
                 </Typography>
 
@@ -73,17 +73,10 @@ function ActiveLowFuelEquipmentDataGrid({ onSuccess }) {
                     onChange={(event) => setThreshold(event.target.value)}
                     size="small"
                     slotProps={{
-                    htmlInput: {
-                        min: 0,
-                        max: 100,
-                    },
-                    }}
-                    sx={{
-                        width: 140,
-                        '& .MuiInputBase-root': { height: 40 },
-                        '& .MuiInputBase-input': { fontSize: '0.8rem' },
-                        '& .MuiInputLabel-root': { fontSize: '0.9rem' },
-                        '& input[type=number]': { colorScheme: 'light' },
+                        htmlInput: {
+                            min: 0,
+                            max: 100,
+                        },
                     }}
                 />
             </Box>
@@ -95,20 +88,6 @@ function ActiveLowFuelEquipmentDataGrid({ onSuccess }) {
                     getRowId={(row) => row.id}
                     rowHeight={44}
                     columnHeaderHeight={45}
-                    sx={{
-                        '& .MuiDataGrid-cell': {
-                            fontSize: '0.8rem',
-                            alignItems: 'center',
-                        },
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                        },
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: '#f4f6f8',
-                            borderBottom: '2px solid #d7dce2',
-                        },
-                    }}
                 />
             </Box>
         </>

@@ -52,20 +52,10 @@ function DiscrepancyDataGrid() {
     return (
         <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'left', gap: 1.5, mb: 2 }} >
-                <Typography sx={{ fontSize: '0.8rem' }}>Field Jobs with Priority Status</Typography>
+                <Typography>Field Jobs with Priority Status</Typography>
                 <FormControl size="small" sx={{ minWidth: 140, height: 40 }}>
                     <InputLabel
                         id="priority-filter-label"
-                        sx={{
-                            fontSize: '0.8rem',
-                            lineHeight: 1.2,
-                            top: '50%',
-                            transform: 'translate(14px, -50%) scale(1)',
-                            '&.MuiInputLabel-shrink': {
-                                top: 0,
-                                transform: 'translate(14px, -9px) scale(0.75)',
-                            },
-                        }}
                     >
                         Priority
                     </InputLabel>
@@ -74,11 +64,6 @@ function DiscrepancyDataGrid() {
                         label="priority"
                         value={priority}
                         onChange={(event) => setPriority(event.target.value)}
-                        sx={{
-                            height: 40,
-                            '& .MuiSelect-select': { fontSize: '0.8rem' },
-                            textAlign: 'left'
-                        }}
                     >
                         {PRIORITY_OPTIONS.map((option) => 
                             <MenuItem key={option || 'all'} value={option} sx={{ fontSize: '0.8rem' }}>
@@ -91,25 +76,11 @@ function DiscrepancyDataGrid() {
             {loading && <CircularProgress />}
             {error && <Alert severity="error">{error}</Alert>}
             {!loading && !error && (
-                <Box sx={{ height: 400, width: '100%' }}>
+                <Box sx={{ height: 300, width: '100%' }}>
                     <DataGrid
                         rows={discrepancies}
                         columns={columns}
                         getRowId={(row) => row.field_job_id} 
-                        sx={{
-                            '& .MuiDataGrid-cell': {
-                                fontSize: '0.8rem',
-                                alignItems: 'center',
-                            },
-                            '& .MuiDataGrid-columnHeaderTitle': {
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                            },
-                            '& .MuiDataGrid-columnHeaders': {
-                                backgroundColor: '#f4f6f8',
-                                borderBottom: '2px solid #d7dce2',
-                            },
-                        }}
                     />
                 </Box>
             )}

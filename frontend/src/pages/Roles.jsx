@@ -72,7 +72,7 @@ export default function Roles() {
             <Box sx={{ ml: { xs: 0, md: '240px', lg: '200px' } }}>
                 <AppHeader username={user?.sub} role={user?.role} onLogout={logout} />
                 <Box>
-                    <Typography variant="h4" gutterBottom>
+                    <Typography variant="h4" gutterBottom sx={{ mt: 2 }}>
                         Roles & Permissions
                     </Typography>
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    MenuItem, IconButton, Typography
+    MenuItem, IconButton, Typography, Divider
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
@@ -365,6 +365,7 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
 
     return (
         <Stack spacing={2}>
+            <Button disabled={loading || !canCreateFieldJob} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField 
                     label="Search title" 
@@ -422,7 +423,7 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
             {error && (
                 <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
             )}
-            <Box sx={{ height: 400, width: '100%' }}>
+            <Box sx={{ height: 600, width: '100%' }}>
                 <DataGrid 
                     rows={rows}
                     columns={gridColumns}
@@ -456,6 +457,7 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                     onRowClick={handleRowClick}
                 />
             </Box>
+            <Divider />
             {isAdmin && (
                 <>
                     <Typography>Inactive Field Jobs</Typography>
@@ -464,7 +466,6 @@ function FieldJobDataGrid({ onSuccess, userRole }) {
                     </Box>
                 </>
             )}
-            <Button disabled={loading || !canCreateFieldJob} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Field Job</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }}>{selectedFieldJob ? 'Edit Field Job' : 'Add New Field Job'}</DialogTitle>
                 <DialogContent>

@@ -57,14 +57,9 @@ function ActiveOperatorDataGrid() {
                     value={supervisorId}
                     onChange={(event) => setSupervisorId(event.target.value)}
                     size="small"
-                    sx={{
-                        width: 150,
-                        '& .MuiInputBase-root': { height: 40 },
-                        '& .MuiInputBase-input, & .MuiInputLabel-root': { fontSize: '0.8rem' },
-                    }}
                 />
-                <Typography sx={{ fontSize: '0.8rem' }}>
-                    Active operators: {activeOperatorsCount}
+                <Typography>
+                    Active operators: <b>{activeOperatorsCount}</b>
                 </Typography>
             </Box>
 
@@ -76,15 +71,6 @@ function ActiveOperatorDataGrid() {
                         rows={activeOperators}
                         columns={columns}
                         getRowId={(row) => row.operator_id}
-                        rowHeight={44}
-                        columnHeaderHeight={42}
-                        sx={{
-                            '& .MuiDataGrid-cell': { fontSize: '0.8rem' },
-                            '& .MuiDataGrid-columnHeaderTitle': {
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                            },
-                        }}
                     />
                 </Box>
             )}

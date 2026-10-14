@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, 
-    Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip, Typography, IconButton
+    Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip, Typography, IconButton, Divider
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -301,6 +301,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
     if (loading) return <CircularProgress />
     return (
         <Stack spacing={2}>
+            <Button disabled={loading || !canCreateReport} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField
                     label="Field Job ID"
@@ -323,7 +324,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
             {error && (
                 <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
             )}
-            <Box sx={{ height: 400, width: '100%' }}>
+            <Box sx={{ height: 600, width: '100%' }}>
                 <DataGrid 
                     rows={rows}
                     columns={gridColumns}
@@ -356,6 +357,7 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
                     }
                 />
             </Box>
+            <Divider />
             {isAdmin && (
                 <>
                     <Typography>Inactive Service Reports</Typography>
@@ -369,7 +371,6 @@ function ServiceReportDataGrid({ onSuccess, userRole }) {
                     </Box>
                 </>
             )}
-            <Button disabled={loading || !canCreateReport} variant="outlined" sx={{ mb: 2, mt: 2 }} onClick={() => setDialogOpen(true)}>Add Service Report</Button>
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                 <DialogTitle sx={{ textAlign: 'center' }} >Add New Service Report</DialogTitle>
                 <DialogContent>

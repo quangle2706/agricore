@@ -56,20 +56,6 @@ function EquipmentWithFieldJobRatioDataGrid() {
                     rows={data} 
                     columns={columns} 
                     getRowId={(row) => row.equipment_model} 
-                    sx={{
-                        '& .MuiDataGrid-cell': {
-                            fontSize: '0.8rem',
-                            alignItems: 'center',
-                        },
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                        },
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: '#f4f6f8',
-                            borderBottom: '2px solid #d7dce2',
-                        },
-                    }}
                 />
             </Box>
         </>

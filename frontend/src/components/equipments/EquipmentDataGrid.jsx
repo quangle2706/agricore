@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { DataGrid } from '@mui/x-data-grid';
 import { Alert, Box, TextField, CircularProgress, Stack,
     Button, Dialog, DialogActions, DialogContent, DialogTitle,
-    LinearProgress, Typography, MenuItem, IconButton
+    LinearProgress, Typography, MenuItem, IconButton, Divider
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -376,6 +376,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
         <>
             <Stack spacing={2} useFlexGap>
                 <Typography>Equipments</Typography>
+                <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                     <TextField 
                         label="Search serial or model" 
@@ -410,7 +411,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                 {error && (
                     <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
                 )}
-                <Box sx={{ height: 400, width: '100%' }}>
+                <Box sx={{ height: 600, width: '100%' }}>
                     <DataGrid 
                         rows={rows}
                         columns={gridColumns}
@@ -444,7 +445,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                         onRowClick={handleRowClick}
                     />
                 </Box>
-                <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
+                <Divider sx={{ marginY: 5 }} />
                 {isAdmin && (
                     <>
                         <Typography>Inactive Equipments</Typography>
