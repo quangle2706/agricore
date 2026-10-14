@@ -5,6 +5,8 @@ import { Alert, Box, TextField, CircularProgress, Stack,
     LinearProgress, Typography, MenuItem, IconButton
  } from "@mui/material";
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import RestoreIcon from '@mui/icons-material/Restore';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import apiClient from "../../api/client";
 import usePermissions from "../../hooks/usePermissions";
 
@@ -34,7 +36,7 @@ const columns = [
 const STATUS_OPTIONS = ['Idle', 'In-Use', 'Maintenance', 'Retired'];
 
 function EquipmentDataGrid({ onSuccess, userRole }) {
-    // const isAdmin = userRole === 'Farm Operations Admin';
+    const isAdmin = userRole === 'Farm Operations Admin';
     
     const { hasPermission } = usePermissions();
     const canCreateEquipment = hasPermission("equipment:create");
@@ -47,6 +49,12 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
     // pagination
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
+    const [inactiveRows, setInactiveRows] = useState([]);
+    const [history, setHistory] = useState([]);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState("");
+    const [historyEquipment, setHistoryEquipment] = useState(null);
     const [reload, setReload] = useState(0);
     const [searchInput, setSearchInput] = useState("");
     const [query, setQuery] = useState({
@@ -109,6 +117,41 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
             controller.abort();
         }
     }, [query, reload]);
+
+    // load inactive
+    useEffect(() => {
+        const controller = new AbortController(); // to cancel the request if the component unmounts
+        let active = true;
+
+        async function load() {
+            setLoading(true);
+            setError("");
+
+            try {
+                const response = await apiClient.get("/equipments/inactive", {
+                    signal: controller.signal,
+                });
+
+                if (!active) return;
+                setInactiveRows(response.data);
+            } catch (err) {
+                if (!active || controller.signal.aborted) return;
+                setRows([]);
+                setError("Unable to load equipments");
+            } finally {
+                if (active) setLoading(false);
+            }
+        }
+
+        load();
+        return () => {
+            active = false;
+            controller.abort();
+        }        
+    }, [reload]);
+
+
+    // ----------
 
     function updateFilter(field, value) {
         setQuery((previous) => ({
@@ -198,7 +241,7 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
     };
 
     const handleDeleteRow = async (equipment) => {
-        if (!window.confirm(`Delete equipment ${equipment.name}?`)) return;
+        if (!window.confirm(`Delete equipment ${equipment.model}?`)) return;
         try {
             await apiClient.delete(`/equipments/${equipment.id}`);
 
@@ -217,6 +260,37 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
         }
     };
 
+    const handleRestoreRow = async (equipment) => {
+        try {
+            await apiClient.post(`/equipments/${equipment.id}/restore`);
+            setReload((previous) => previous + 1);
+        } catch {
+            setError("Could not load inactive equipments");
+        }
+    }
+
+    // load history
+    async function loadHistory(id) {
+        const response = await apiClient.get(`/equipments/${id}/history`);
+        setHistory(response.data);
+    }
+
+    const showHistory = async (equipment) => {
+        setHistoryEquipment(equipment);
+        setHistory([]);
+        setHistoryError("");
+        setHistoryOpen(true);
+        setHistoryLoading(true);
+
+        try {
+            await loadHistory(equipment.id);
+        } catch {
+            setHistoryError("Could not load history");
+        } finally {
+            setHistoryLoading(false);
+        }
+    }
+
     const gridColumns = [
         ...columns,
         (canDeleteEquipment && {
@@ -228,24 +302,77 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
             align: 'center',
             headerAlign: 'center',
             renderCell: ({ row }) => (
-                <IconButton
-                    aria-label={`Delete farm ${row.name}`}
-                    color="error"
-                    size="small"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        handleDeleteRow(row);
-                    }}
-                >
-                    <DeleteOutlinedIcon fontSize="small" />
-                </IconButton>
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton
+                        aria-label={`Delete equipment ${row.model}`}
+                        color="error"
+                        size="small"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleDeleteRow(row);
+                        }}
+                    >
+                        <DeleteOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        aria-label={`Show history for equipment ${row.model}`}
+                        color="default"
+                        size="small"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            showHistory(row);
+                        }}
+                    >
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
             ),
         }),
     ];
 
+    const inactiveColumns = [
+        ...columns,
+        {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 80,
+            sortable: false,
+            filterable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <IconButton
+                        aria-label={`Restore equipment ${row.model}`}
+                        color="default"
+                        size="small"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleRestoreRow(row);
+                        }}
+                    >
+                        <RestoreIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                        aria-label={`Show history for equipment ${row.model}`}
+                        color="default"
+                        size="small"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            showHistory(row);
+                        }}
+                    >
+                        <HistoryToggleOffIcon fontSize="small" />
+                    </IconButton>
+                </Stack>
+            ),
+        }
+    ]
+
     return (
         <>
-            <Stack spacing={2}>
+            <Stack spacing={2} useFlexGap>
+                <Typography>Equipments</Typography>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                     <TextField 
                         label="Search serial or model" 
@@ -315,6 +442,18 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                     />
                 </Box>
                 <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
+                
+                <Typography sx={{ mt: 2 }}>Inactive Equipments</Typography>
+                {isAdmin && <Box sx={{ height: 400, width: '100%' }}>
+                    <DataGrid 
+                        rows={inactiveRows}
+                        columns={inactiveColumns}
+                        loading={loading}
+                        pagination
+                        disableColumnFilter
+                        pageSizeOptions={[10, 25, 50, 100]}
+                    />
+                </Box>}
                 <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                     <DialogTitle sx={{ textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
                     <DialogContent>
@@ -336,6 +475,51 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                         <Button variant="contained" onClick={selectedEquipment ? handleUpdate : handleCreate}>
                             {selectedEquipment ? 'Save changes' : 'Create'}
                         </Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog
+                    open={historyOpen}
+                    onClose={() => setHistoryOpen(false)}
+                    fullWidth
+                    maxWidth="sm"
+                >
+                    <DialogTitle>
+                        History{historyEquipment ? ` · ${historyEquipment.model}` : ""}
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        {historyLoading ? (
+                            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                                <CircularProgress size={28} aria-label="Loading equipment history" />
+                            </Box>
+                        ) : historyError ? (
+                            <Alert severity="error">{historyError}</Alert>
+                        ) : history.length === 0 ? (
+                            <Typography color="text.secondary">No history available.</Typography>
+                        ) : (
+                            <Stack spacing={2}>
+                                {history.map((entry) => (
+                                    <Box
+                                        key={entry.id}
+                                        sx={{ borderBottom: 1, borderColor: "divider", pb: 2 }}
+                                    >
+                                        <Typography fontWeight={600}>
+                                            {entry.action} · {entry.actor_name}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {new Date(entry.occurred_at).toLocaleString()}
+                                        </Typography>
+                                        {Object.entries(entry.changes ?? {}).map(([field, change]) => (
+                                            <Typography key={field} variant="body2">
+                                                {field}: {String(change.before ?? "—")} → {String(change.after ?? "—")}
+                                            </Typography>
+                                        ))}
+                                    </Box>
+                                ))}
+                            </Stack>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setHistoryOpen(false)}>Close</Button>
                     </DialogActions>
                 </Dialog>
             </Stack>
