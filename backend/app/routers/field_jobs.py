@@ -318,7 +318,10 @@ async def list_colocation_discrepancies(
         )
         .join(Equipment, Equipment.id == FieldJob.equipment_id)
         .join(Operator, Operator.id == FieldJob.operator_id)
-        .where(Equipment.farm_id != Operator.farm_id)
+        .where(Equipment.farm_id != Operator.farm_id,
+               Equipment.deleted_at.is_(None),
+               Operator.deleted_at.is_(None),
+               FieldJob.deleted_at.is_(None))
     )
 
     #use the query parameter
@@ -350,6 +353,9 @@ async def get_completion_failure_ratio(
                 .label("failed_count")
         )
         .join(FieldJob, FieldJob.equipment_id == Equipment.id)
+        .where(
+            Equipment.deleted_at.is_(None),
+            FieldJob.deleted_at.is_(None))
         .group_by(Equipment.model)
     )
 

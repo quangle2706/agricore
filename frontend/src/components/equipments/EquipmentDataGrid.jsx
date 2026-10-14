@@ -9,6 +9,7 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import apiClient from "../../api/client";
 import usePermissions from "../../hooks/usePermissions";
+import RecordHistoryDialog from "../audit/RecordHistoryDialog";
 
 function FuelLevelCell({ value }) {
     const fuelLevel = Math.min(Math.max(Number(value) || 0, 0), 100);
@@ -120,6 +121,8 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
 
     // load inactive
     useEffect(() => {
+        if (!isAdmin) return undefined;
+
         const controller = new AbortController(); // to cancel the request if the component unmounts
         let active = true;
 
@@ -442,18 +445,14 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                     />
                 </Box>
                 <Button variant="outlined" disabled={loading || !canCreateEquipment} sx={{ mb: 2, mt: 2 }} onClick={openCreateDialog}>Add Equipment</Button>
-                
-                <Typography sx={{ mt: 2 }}>Inactive Equipments</Typography>
-                {isAdmin && <Box sx={{ height: 400, width: '100%' }}>
-                    <DataGrid 
-                        rows={inactiveRows}
-                        columns={inactiveColumns}
-                        loading={loading}
-                        pagination
-                        disableColumnFilter
-                        pageSizeOptions={[10, 25, 50, 100]}
-                    />
-                </Box>}
+                {isAdmin && (
+                    <>
+                        <Typography>Inactive Equipments</Typography>
+                        <Box sx={{ height: 300, width: '100%' }}>
+                            <DataGrid rows={inactiveRows} columns={inactiveColumns} loading={loading} pageSizeOptions={[10, 25, 50, 100]} />
+                        </Box>
+                    </>
+                )}
                 <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
                     <DialogTitle sx={{ textAlign: 'center' }}>{selectedEquipment ? 'Edit Equipment' : 'Add New Equipment'}</DialogTitle>
                     <DialogContent>
@@ -477,51 +476,14 @@ function EquipmentDataGrid({ onSuccess, userRole }) {
                         </Button>
                     </DialogActions>
                 </Dialog>
-                <Dialog
+                <RecordHistoryDialog
                     open={historyOpen}
                     onClose={() => setHistoryOpen(false)}
-                    fullWidth
-                    maxWidth="sm"
-                >
-                    <DialogTitle>
-                        History{historyEquipment ? ` · ${historyEquipment.model}` : ""}
-                    </DialogTitle>
-                    <DialogContent dividers>
-                        {historyLoading ? (
-                            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-                                <CircularProgress size={28} aria-label="Loading equipment history" />
-                            </Box>
-                        ) : historyError ? (
-                            <Alert severity="error">{historyError}</Alert>
-                        ) : history.length === 0 ? (
-                            <Typography color="text.secondary">No history available.</Typography>
-                        ) : (
-                            <Stack spacing={2}>
-                                {history.map((entry) => (
-                                    <Box
-                                        key={entry.id}
-                                        sx={{ borderBottom: 1, borderColor: "divider", pb: 2 }}
-                                    >
-                                        <Typography fontWeight={600}>
-                                            {entry.action} · {entry.actor_name}
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            {new Date(entry.occurred_at).toLocaleString()}
-                                        </Typography>
-                                        {Object.entries(entry.changes ?? {}).map(([field, change]) => (
-                                            <Typography key={field} variant="body2">
-                                                {field}: {String(change.before ?? "—")} → {String(change.after ?? "—")}
-                                            </Typography>
-                                        ))}
-                                    </Box>
-                                ))}
-                            </Stack>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setHistoryOpen(false)}>Close</Button>
-                    </DialogActions>
-                </Dialog>
+                    title={historyEquipment?.name}
+                    entries={history}
+                    loading={historyLoading}
+                    error={historyError}
+                />
             </Stack>
         </>
     )

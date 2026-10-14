@@ -226,7 +226,10 @@ async def get_active_operator_count(
         .where(FieldJob.status.in_([
             FieldJobStatus.PENDING, 
             FieldJobStatus.IN_PROGRESS
-            ])
+            ]),
+            Operator.deleted_at.is_(None),
+            Farm.deleted_at.is_(None),
+            FieldJob.deleted_at.is_(None),
         )
     )
 
@@ -264,7 +267,10 @@ async def get_active_operator_list(
         .where(FieldJob.status.in_([
             FieldJobStatus.PENDING, 
             FieldJobStatus.IN_PROGRESS
-            ])
+            ]),
+            Operator.deleted_at.is_(None),
+            Farm.deleted_at.is_(None),
+            FieldJob.deleted_at.is_(None),
         )
     )
 

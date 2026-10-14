@@ -230,6 +230,10 @@ async def get_farms_with_maintenance_ratio(
             maintenance_count.label("total_maintenance_equipments")
         )
         .join(Equipment, Equipment.farm_id == Farm.id)
+        .where(
+            Equipment.deleted_at.is_(None),
+            Farm.deleted_at.is_(None)
+        )
         .group_by(Farm.id)
         .having(maintenance_ratio >= threshold / 100) #greater than or equal
         .order_by(Farm.id)

@@ -171,6 +171,7 @@ async def list_active_equipments(
     db: AsyncSession = Depends(get_db)
 ) -> list[EquipmentRead]:
     statement = select(Equipment).where(
+        Equipment.deleted_at.is_(None),
         Equipment.status != EquipmentStatus.MAINTENANCE,
         Equipment.status != EquipmentStatus.RETIRED)
 
