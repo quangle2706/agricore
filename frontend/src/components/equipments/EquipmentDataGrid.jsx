@@ -31,7 +31,7 @@ const columns = [
     { field: 'model', headerName: 'Model', width: 160},
     { field: 'status', headerName: 'Status', width: 130},
     { field: 'fuel_level', headerName: 'Fuel Level %', width: 180, type: 'number', renderCell: (params) => <FuelLevelCell value={params.value} /> }, 
-    { field: 'farm_id', headerName: 'Supervisor ID', width: 130, type: 'number'},
+    { field: 'farm_id', headerName: 'Farm ID', width: 130, type: 'number'},
 ];
 
 const STATUS_OPTIONS = ['Idle', 'In-Use', 'Maintenance', 'Retired'];

@@ -6,10 +6,12 @@ from .operator import Operator
 from .service_report import ServiceReport
 from .base import Base
 from .user import User, UserRole
+from .refresh_token import RefreshToken
+from .audit_log import AuditLog
 
 __all__ = [
     "Base",
     "EquipmentStatus", "FieldJobStatus", "FieldJobPriority",
     "Farm", "Equipment", "FieldJob", "Operator", "ServiceReport",
-    "User", "UserRole"
+    "User", "UserRole", "RefreshToken", "AuditLog"
 ]

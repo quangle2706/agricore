@@ -1,6 +1,7 @@
 #Equipment(id, serial_number, model, status, fuel_level, farm_id)
 
 from decimal import Decimal
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,5 +22,8 @@ class EquipmentCreate(EquipmentBase):
 
 class EquipmentRead(EquipmentBase):
     id: int
+
+    deleted_at: datetime | None = None
+    deleted_by: int | None = None
 
     model_config = ConfigDict(from_attributes=True)  # Usually used in Read /get

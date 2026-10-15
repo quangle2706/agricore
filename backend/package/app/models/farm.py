@@ -6,12 +6,13 @@ from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixin import SoftDeleteMixin
 
 if TYPE_CHECKING:
     from .operator import Operator
     from .equipment import Equipment
 
-class Farm(Base):
+class Farm(SoftDeleteMixin, Base):
     #setting the table name for the farm model in the database
     __tablename__ = "farms"
 

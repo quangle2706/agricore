@@ -10,12 +10,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .enums import EquipmentStatus
+from .mixin import SoftDeleteMixin
 
 if TYPE_CHECKING:
     from .farm import Farm
     from .field_job import FieldJob
 
-class Equipment(Base):
+class Equipment(SoftDeleteMixin, Base):
     __tablename__ = "equipments"
 
     #there is a table level constaint where the fuel_level column is ALWAYS between 0 and 100

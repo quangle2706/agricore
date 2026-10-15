@@ -2,7 +2,19 @@
 INSERT INTO farms (name, location_region, capacity, supervisor_id) VALUES 
     ('Green Valley Farm', 'North Florida', 100, 101),
     ('Sunrise Farm', 'Central Florida', 150, 101),
-    ('Riverbend Farm', 'South Florida', 120, 102);
+    ('Riverbend Farm', 'South Florida', 120, 102),
+    ('Meadowbrook Farm', 'North Florida', 80, 103),
+    ('Willow Creek Farm', 'Central Florida', 90, 104),
+    ('Sunny Acres Farm', 'South Florida', 110, 105),
+    ('Harvest Hill Farm', 'North Florida', 130, 106),
+    ('Cedar Grove Farm', 'Central Florida', 95, 107),
+    ('Golden Fields Farm', 'South Florida', 140, 108),
+    ('Maplewood Farm', 'North Florida', 85, 109),
+    ('Pine Ridge Farm', 'Central Florida', 125, 110),
+    ('Blueberry Hill Farm', 'South Florida', 105, 111),
+    ('Silver Lake Farm', 'North Florida', 115, 112),
+    ('Cloverfield Farm', 'Central Florida', 135, 113),
+    ('Sunset Valley Farm', 'South Florida', 145, 114);
 
 INSERT INTO equipments (serial_number, model, status, fuel_level, farm_id) VALUES
     ('AG-001', 'John Deere 5075E', 'Idle', 85,
@@ -16,7 +28,25 @@ INSERT INTO equipments (serial_number, model, status, fuel_level, farm_id) VALUE
     ('AG-005', 'Kubota M7060', 'Idle', 10,
         (SELECT id FROM farms WHERE name = 'Riverbend Farm')),
     ('AG-006', 'New Holland T5', 'Retired', 0,
-        (SELECT id FROM farms WHERE name = 'Riverbend Farm'));
+        (SELECT id FROM farms WHERE name = 'Riverbend Farm')),
+    ('AG-007', 'John Deere 5075E', 'Idle', 90,
+        (SELECT id FROM farms WHERE name = 'Meadowbrook Farm')),
+    ('AG-008', 'Kubota M7060', 'In-Use', 20,
+        (SELECT id FROM farms WHERE name = 'Willow Creek Farm')),
+    ('AG-009', 'New Holland T5', 'Maintenance', 50,
+        (SELECT id FROM farms WHERE name = 'Sunny Acres Farm')),
+    ('AG-010', 'John Deere 5075E', 'Idle', 75,
+        (SELECT id FROM farms WHERE name = 'Harvest Hill Farm')),
+    ('AG-011', 'Kubota M7060', 'In-Use', 30,
+        (SELECT id FROM farms WHERE name = 'Cedar Grove Farm')),
+    ('AG-012', 'New Holland T5', 'Maintenance', 55,
+        (SELECT id FROM farms WHERE name = 'Golden Fields Farm')),
+    ('AG-013', 'John Deere 5075E', 'Idle', 80,
+        (SELECT id FROM farms WHERE name = 'Maplewood Farm')),
+    ('AG-014', 'Kubota M7060', 'In-Use', 25,
+        (SELECT id FROM farms WHERE name = 'Pine Ridge Farm')),
+    ('AG-015', 'New Holland T5', 'Maintenance', 60,
+        (SELECT id FROM farms WHERE name = 'Blueberry Hill Farm'));
 
 INSERT INTO operators (name, farm_id) VALUES 
     ('James Carter',
@@ -30,7 +60,15 @@ INSERT INTO operators (name, farm_id) VALUES
     ('Liam Taylor',
         (SELECT id FROM farms WHERE name = 'Riverbend Farm')),
     ('Sophia Martinez',
-        (SELECT id FROM farms WHERE name = 'Riverbend Farm'));
+        (SELECT id FROM farms WHERE name = 'Riverbend Farm')),
+    ('Mia Anderson',
+        (SELECT id FROM farms WHERE name = 'Meadowbrook Farm')),
+    ('William Thomas',
+        (SELECT id FROM farms WHERE name = 'Pine Ridge Farm')),
+    ('Ava Jackson',
+        (SELECT id FROM farms WHERE name = 'Blueberry Hill Farm')),
+    ('Ethan White',
+        (SELECT id FROM farms WHERE name = 'Cedar Grove Farm'));
 
 INSERT INTO field_jobs (title, priority, status, equipment_id, operator_id) VALUES 
     ('Prepare north field soil', 'Medium', 'Completed',

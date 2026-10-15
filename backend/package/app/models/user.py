@@ -7,8 +7,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 from .enums import UserRole
+from .mixin import SoftDeleteMixin
 
-class User(Base):
+class User(SoftDeleteMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)

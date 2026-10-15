@@ -49,7 +49,15 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
         "operator:read",
         "field_job:read",
         "service_report:read",
-    })
+    }),
+    "Tester": frozenset({
+        "farm:read",
+        "equipment:read",
+        "operator:read",
+        "field_job:read",
+        "service_report:read",
+        "role:read",
+    }),
 }
 
 def get_role_name(role) -> str:

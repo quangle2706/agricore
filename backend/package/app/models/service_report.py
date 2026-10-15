@@ -7,11 +7,12 @@ from sqlalchemy import ForeignKey, Integer, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixin import SoftDeleteMixin
 
 if TYPE_CHECKING:
     from .field_job import FieldJob
 
-class ServiceReport(Base):
+class ServiceReport(SoftDeleteMixin, Base):
     __tablename__ = "service_reports"
 
     id: Mapped[int] = mapped_column(primary_key=True)

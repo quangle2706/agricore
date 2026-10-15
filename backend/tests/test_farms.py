@@ -30,3 +30,14 @@ async def test_create_farm_succeeds_for_farm_operations_admin(client, seeded_use
     response = await client.post("/farms", json=payload, headers=auth_header(seeded_users["admin"]))
     assert response.status_code == 201
     assert response.json()["name"] == "Test Farm"
+
+
+#test delete farm with audit log
+async def test_delete_farm_succeeds_for_farm_operations_admin(client, seeded_users, seeded_farm):
+    response = await client.delete(f"/farms/{seeded_farm.id}", headers=auth_header(seeded_users["admin"]))
+    assert response.status_code == 204
+
+    farm_history_response = await client.get(f"/farms/{seeded_farm.id}/history", headers=auth_header(seeded_users["admin"]))
+    assert farm_history_response.status_code == 200
+    assert farm_history_response.json()[0]["action"] == "DELETE"
+    assert farm_history_response.json()[0]["actor_name"] == seeded_users["admin"].username

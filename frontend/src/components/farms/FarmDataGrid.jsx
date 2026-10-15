@@ -332,7 +332,7 @@ function FarmDataGrid({ onSuccess, userRole }) {
             {error && (
                 <Alert severity="error" action={<Button color="inherit" onClick={() => setReload((value) => value + 1)}>Retry</Button>} >{error}</Alert>
             )}
-            <Box sx={{ height: 400, width: '100%' }}>
+            <Box sx={{ height: 600, width: '100%' }}>
                 <DataGrid 
                     rows={rows}
                     columns={gridColumns}

@@ -1,3 +1,5 @@
+# pytest -v tests/test_auth.py
+
 import secrets
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -45,4 +47,23 @@ async def test_register_rejects_case_insensitive_duplicate_username(client, seed
     response = await client.post("/auth/register", json=payload, headers=auth_header(seeded_users["admin"]))
     assert response.status_code == 400
 
+# Test refresh token endpoint
+async def test_refresh_token_succeeds_with_valid_token(client, seeded_users):
+    # First, log in to get a valid access token
+    login_response = await client.post(
+        "/auth/token",
+        data={"username": "test_admin", "password": "pw"},
+    )
+    assert login_response.status_code == 200
+    access_token = login_response.json()["access_token"]
+    refresh_token = login_response.json()["refresh_token"]
+
+    # Now, use the access token to refresh it
+    refresh_response = await client.post(
+        "/auth/refresh",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"refresh_token": refresh_token}
+    )
+    assert refresh_response.status_code == 200
+    assert "access_token" in refresh_response.json()
 
