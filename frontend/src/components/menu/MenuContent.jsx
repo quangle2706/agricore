@@ -13,6 +13,7 @@ import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import MonitorHeartOutlinedIcon from '@mui/icons-material/MonitorHeartOutlined';
 
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -36,8 +37,9 @@ export default function MenuContent({ isAdmin }) {
   const mainListItems = [
     ...listItems,
     (isAdmin && { text: 'Users', icon: <PeopleRoundedIcon />, route: '/users' }),
-    (isAdmin && { text: 'Roles', icon: <AdminPanelSettingsIcon />, route: '/roles' })
-  ]
+    (isAdmin && { text: 'Roles', icon: <AdminPanelSettingsIcon />, route: '/roles' }),
+    { text: 'Healths', icon: <MonitorHeartOutlinedIcon />, route: '/health' }
+  ].filter(Boolean)
 
   return (
     <Stack sx={{ flexGrow: 1, p: 1, justifyContent: 'space-between' }}>

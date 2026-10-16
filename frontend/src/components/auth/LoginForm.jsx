@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Paper, TextField, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../utilities/ThemeToggle";
@@ -10,10 +10,12 @@ function LoginForm() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
         setError(null);
+        setIsLoggingIn(true);
         try {
             await login(username, password);
             navigate('/', { replace: true });
@@ -23,6 +25,8 @@ function LoginForm() {
             } else {
                 setError('Something went wrong logging in, please try again shortly');
             }
+        } finally {
+            setIsLoggingIn(false);
         }
     };
 
@@ -36,14 +40,15 @@ function LoginForm() {
                     <ThemeToggle />
                 </Box>
                 {error && <Alert severity="error" sx={{mb: 2}}>{error}</Alert>}
-                <TextField label="Username" fullWidth margin="normal" value={username}
+                <TextField label="Username" fullWidth margin="normal" value={username} disabled={isLoggingIn}
                     onChange={(event) => setUsername(event.target.value)}
                     />
-                <TextField label="Password" type="password" fullWidth margin="normal" value={password}
+                <TextField label="Password" type="password" fullWidth margin="normal" value={password} disabled={isLoggingIn}
                     onChange={(event) => setPassword(event.target.value)}
                     />
-                <Button type="submit" variant="contained" fullWidth sx={{ mt: 2 }}>
-                    Log In
+                <Button type="submit" variant="contained" fullWidth disabled={isLoggingIn} sx={{ mt: 2 }}
+                    startIcon={isLoggingIn ? <CircularProgress size={18} color="inherit" /> : null}>
+                    {isLoggingIn ? 'Waiting for login...' : 'Log In'}
                 </Button>
             </Paper>
         </Box>

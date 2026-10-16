@@ -62,7 +62,8 @@ async def readiness_check(db: AsyncSession = Depends(get_db)):
         },
     )
 
-@router.get("/detail")
+@router.get("/detail", include_in_schema=False)
+@router.get("/details")
 async def detailed_health_check(
     db: AsyncSession = Depends(get_db),
     # _: User = Depends(require_role(UserRole.FARM_OPERATIONS_ADMIN))

@@ -10,6 +10,7 @@ import Operators from './pages/Operators';
 import ServiceReports from './pages/ServiceReports';
 import Users from './pages/Users';
 import Roles from './pages/Roles';
+import Healths from './pages/Healths';
 
 function AppContent() {
     const { isAuthenticated } = useAuth();
@@ -29,6 +30,7 @@ function AppContent() {
             <Route path='/service-reports' element={<ServiceReports />} />
             <Route path='/users' element={<Users />} />
             <Route path='/roles' element={<Roles />} />
+            <Route path='/health' element={<Healths />} />
         </Route>
         <Route
             path='*'

@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import EquipmentDataGrid from "../components/equipments/EquipmentDataGrid";
 import { useState } from "react";
 
-// TODO: add SideMenu
 import SideMenu from "../components/menu/SideMenu";
 
 function Equipments() {
